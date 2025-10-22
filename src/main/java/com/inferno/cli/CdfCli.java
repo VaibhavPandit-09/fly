@@ -48,11 +48,25 @@ public final class CdfCli {
                 yield 0;
             }
             case "--add-root" -> handleAddRoot(args);
-            case "--list-roots" -> handleListRoots();
+            case "--list-r" -> handleListRoots();
+            case "--count" -> handlePathCount();
             case "--reindex" -> handleReindex();
             default -> handleBasenameQuery(args);
         };
     }
+
+    private int handlePathCount() {
+        Long n;
+        try {
+            n = repository.countDirectories();
+            System.out.println("Total number of indexed paths : "+n);
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return 1;
+        }
+        return 0;
+    }
+    
 
     private void printUsage() {
         System.out.println("""
@@ -104,9 +118,9 @@ public final class CdfCli {
             System.out.println("No roots configured.");
             return 0;
         }
-        System.out.printf("Config directory: %s%n", configManager.configDir());
+        System.out.println("Config directory: " +configManager.configDir());
         for (CdfRepository.Root root : roots) {
-            System.out.printf("[%d] priority=%d path=%s%n", root.id(), root.priority(), root.path());
+            System.out.println("priority="+root.id()+" path="+root.path());
         }
         return 0;
     }
