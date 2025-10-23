@@ -33,7 +33,7 @@ public final class DirectoryIndexer {
      * Reindex every configured root.
      */
     public void reindexAllRoots() throws SQLException, IOException {
-        for (CdfRepository.Root root : repository.listRootsOrderByPriority()) {
+        for (CdfRepository.Root root : repository.listRoots()) {
             reindexRoot(root);
         }
     }

@@ -4,9 +4,7 @@ import com.inferno.database.CdfRepository;
 
 import java.sql.SQLException;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -24,32 +22,42 @@ public final class JumpPaths {
     /**
      * Resolve a single-token basename query to a directory path.
      */
-    public Optional<CdfRepository.Directory> resolveByBasename(String basename) throws SQLException {
+    public List<String> resolveByBasename(String basename) throws SQLException {
+        List<String> paths;
+
         if (basename == null || basename.isBlank()) {
-            return Optional.empty();
+            return paths = List.of();
         }
 
         List<CdfRepository.Directory> matches = repository.findByBasename(basename);
         if (matches.isEmpty()) {
-            return Optional.empty();
-        }
-
-        Map<Integer, CdfRepository.Root> rootsById = new HashMap<>();
-        for (CdfRepository.Root root : repository.listRootsOrderByPriority()) {
-            rootsById.put(root.id(), root);
+            return paths = List.of();
         }
 
         Comparator<CdfRepository.Directory> comparator = Comparator
-                .comparingInt((CdfRepository.Directory d) -> rootPriority(d.rootId(), rootsById))
-                .thenComparingInt(CdfRepository.Directory::depth)
+                .comparingInt(CdfRepository.Directory::depth)
                 .thenComparing(CdfRepository.Directory::fullpath);
 
         matches.sort(comparator);
-        return Optional.of(matches.get(0));
+        paths = matches.stream()
+                .map(CdfRepository.Directory::fullpath)
+                .toList();
+        repository.replaceLastCallPaths(paths);
+        return paths;
     }
 
-    private static int rootPriority(int rootId, Map<Integer, CdfRepository.Root> roots) {
-        CdfRepository.Root root = roots.get(rootId);
-        return root != null ? root.priority() : Integer.MAX_VALUE;
+    // Get a path from the last query by its index (1-based)
+    public List<String> getPathFromLastCall(int index) {
+        List<String> paths = null;
+        try {
+            paths = repository.getLastCallPaths();
+        } catch (SQLException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+        }
+        if (index < 1 || index > paths.size()) {
+            return List.of();
+        }
+        return List.of(paths.get(index - 1));
     }
 }

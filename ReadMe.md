@@ -7,9 +7,9 @@
 ## Current Capabilities (v0.1)
 
 - **SQLite-backed index** stored at `~/.local/share/cdf/index.sqlite` (override with `CDF_DATA_DIR`).
-- **Root management** via `--add-root`, `--list-roots`, and automatic priority handling.
+- **Root management** via `--add-root` and `--list-roots`.
 - **Full reindex** over all configured roots with `.cdfIgnore` support (global + per-root gitignore syntax).
-- **Single-token jumps** ranked by root priority and directory depth.
+- **Single-token jumps** ranked by directory depth.
 - **Silent runtime**: embedded SLF4J NOP binder, native loading disabled (no noisy warnings).
 - **Shaded CLI artifact** (`cdf-1.0-SNAPSHOT-all.jar`) bundles SQLite and logging dependencies.
 
@@ -32,9 +32,9 @@ See `Changelog.md` for a running log of fixes and decisions.
 ## Usage Cheatsheet
 
 ```bash
-# Register roots (lower priority number wins)
-java --enable-native-access=ALL-UNNAMED -jar /usr/local/lib/cdfctl-all.jar --add-root ~/workspace --priority 10
-java --enable-native-access=ALL-UNNAMED -jar /usr/local/lib/cdfctl-all.jar --add-root ~/playground --priority 20
+# Register roots
+java --enable-native-access=ALL-UNNAMED -jar /usr/local/lib/cdfctl-all.jar --add-root ~/workspace
+java --enable-native-access=ALL-UNNAMED -jar /usr/local/lib/cdfctl-all.jar --add-root ~/playground
 
 # Rebuild the index (global + per-root .cdfIgnore respected)
 java --enable-native-access=ALL-UNNAMED -jar /usr/local/lib/cdfctl-all.jar --reindex
@@ -48,7 +48,7 @@ java --enable-native-access=ALL-UNNAMED -jar /usr/local/lib/cdfctl-all.jar --lis
 
 ### Configuration Files
 
-- `~/.config/cdf/.cdfRoots` — Machine-readable root list (`<priority> <absolute-path>`).
+- `~/.config/cdf/.cdfRoots` — Machine-readable root list (one absolute path per line).
 - `~/.config/cdf/.cdfIgnore` — Global gitignore-style rules.
 - `<root>/.cdfIgnore` — Per-root overrides, merged after global.
 
@@ -79,7 +79,7 @@ SQLite WAL files (`index.sqlite-wal`, `index.sqlite-shm`) live alongside the pri
 | **v0.1** | ✅ | Basename jump, SQLite storage, `.cdfIgnore`, shaded packaging, silent logging. |
 | **v0.2** | 🚧 | Multi-token ordered search (query like `cdf project api`). |
 | **v0.3** | 📌 | Incremental refresh (`--refresh`), directory change detection. |
-| **v0.4** | 📌 | MRU ranking, root priority tuning UI, richer list output. |
+| **v0.4** | 📌 | MRU ranking, richer list output, additional ranking heuristics. |
 | **v0.5** | 📌 | Interactive picker (fzf fallback), stats/diagnostics commands. |
 | **v1.0** | 📌 | Cross-platform polish, installers, scheduled reindex integration. |
 

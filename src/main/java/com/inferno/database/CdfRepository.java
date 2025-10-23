@@ -23,7 +23,7 @@ import java.util.Optional;
 public final class CdfRepository implements AutoCloseable {
 
     // === DTOs (records keep it compact and immutable) ===
-    public record Root(int id, String path, int priority) {}
+    public record Root(int id, String path) {}
     public record Directory(
             int id,
             String basename,
@@ -44,8 +44,7 @@ public final class CdfRepository implements AutoCloseable {
 
         CREATE TABLE IF NOT EXISTS roots (
           id       INTEGER PRIMARY KEY,
-          path     TEXT NOT NULL UNIQUE,
-          priority INTEGER NOT NULL
+          path     TEXT NOT NULL UNIQUE
         );
 
         CREATE TABLE IF NOT EXISTS directories (
@@ -57,6 +56,11 @@ public final class CdfRepository implements AutoCloseable {
           mtime      INTEGER NOT NULL,
           last_used  INTEGER,
           segments   TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS lastcall (
+          id         INTEGER PRIMARY KEY,
+          paths      TEXT NOT NULL
         );
 
         CREATE INDEX IF NOT EXISTS idx_dirs_basename
@@ -112,6 +116,43 @@ public final class CdfRepository implements AutoCloseable {
         try (Statement s = conn.createStatement()) {
             s.executeUpdate(SCHEMA_DDL);
         }
+        migrateLegacyPriorityColumn();
+    }
+
+    //Get lastcall paths
+    public List<String> getLastCallPaths() throws SQLException {
+        final String sql = "SELECT paths FROM lastcall WHERE id = 1";
+        Optional<String> paths;
+        try (PreparedStatement ps = requireConn().prepareStatement(sql)) {
+            try (ResultSet rs = ps.executeQuery()) {
+                 paths = rs.next() ? Optional.of(rs.getString(1)) : Optional.empty();
+            }
+        }
+        if (paths.isPresent()) {
+            String pathStr = paths.get();
+            String[] pathArr = pathStr.split(";");
+            List<String> pathList = new ArrayList<>();
+            for (String p : pathArr) {
+                pathList.add(p);
+            }
+            return pathList;
+        } else {
+            return new ArrayList<>();
+        }
+    }
+
+    // replace lastcall paths
+    public void replaceLastCallPaths(List<String> paths) throws SQLException {
+        final String sqlInsert = """
+            INSERT INTO lastcall (id, paths)
+            VALUES (1, ?)
+            ON CONFLICT(id) DO UPDATE SET paths = excluded.paths
+            """;
+        String joinedPaths = String.join(";", paths);
+        try (PreparedStatement ps = requireConn().prepareStatement(sqlInsert)) {
+            ps.setString(1, joinedPaths);
+            ps.executeUpdate();
+        }
     }
 
     @Override
@@ -147,18 +188,16 @@ public final class CdfRepository implements AutoCloseable {
 
     /**
      * Upsert a root by absolute path; returns root id.
-     * Lower priority value == higher priority when ranking.
      */
-    public int upsertRoot(String path, int priority) throws SQLException {
+    public int upsertRoot(String path) throws SQLException {
         Objects.requireNonNull(path);
         final String sql = """
-            INSERT INTO roots(path, priority)
-            VALUES(?, ?)
-            ON CONFLICT(path) DO UPDATE SET priority = excluded.priority
+            INSERT INTO roots(path)
+            VALUES(?)
+            ON CONFLICT(path) DO NOTHING
             """;
         try (PreparedStatement ps = requireConn().prepareStatement(sql)) {
             ps.setString(1, path);
-            ps.setInt(2, priority);
             ps.executeUpdate();
         }
         return getRootIdByPath(path).orElseThrow(() -> new SQLException("Failed to fetch root id after upsert"));
@@ -182,13 +221,13 @@ public final class CdfRepository implements AutoCloseable {
         }
     }
 
-    public List<Root> listRootsOrderByPriority() throws SQLException {
-        final String sql = "SELECT id, path, priority FROM roots ORDER BY priority ASC, id ASC";
+    public List<Root> listRoots() throws SQLException {
+        final String sql = "SELECT id, path FROM roots ORDER BY path COLLATE NOCASE ASC, id ASC";
         try (PreparedStatement ps = requireConn().prepareStatement(sql);
              ResultSet rs = ps.executeQuery()) {
             List<Root> list = new ArrayList<>();
             while (rs.next()) {
-                list.add(new Root(rs.getInt(1), rs.getString(2), rs.getInt(3)));
+                list.add(new Root(rs.getInt(1), rs.getString(2)));
             }
             return list;
         }
@@ -283,6 +322,19 @@ public final class CdfRepository implements AutoCloseable {
             ps.setInt(1, rootId);
             return ps.executeUpdate();
         }
+    }
+
+    public int deleteAllRootsAndDirectories(){
+        final String sqlDirs = "DELETE FROM directories";
+        final String sqlRoots = "DELETE FROM roots";
+        try (Statement s = requireConn().createStatement()) {
+            int deletedDirs = s.executeUpdate(sqlDirs);
+            int deletedRoots = s.executeUpdate(sqlRoots);
+            return deletedDirs + deletedRoots;
+        } catch (SQLException e) {
+            return 0;
+        }
+
     }
 
     public Optional<Directory> getDirectoryByFullpath(String fullpath) throws SQLException {
@@ -413,6 +465,46 @@ public final class CdfRepository implements AutoCloseable {
     // Quick now() helper for MRU
     public static long nowEpochSeconds() {
         return Instant.now().getEpochSecond();
+    }
+
+    private void migrateLegacyPriorityColumn() throws SQLException {
+        if (this.conn == null) {
+            return;
+        }
+        boolean hasPriority = false;
+        try (PreparedStatement ps = conn.prepareStatement("PRAGMA table_info(roots)");
+             ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) {
+                final String columnName = rs.getString("name");
+                if ("priority".equalsIgnoreCase(columnName)) {
+                    hasPriority = true;
+                    break;
+                }
+            }
+        }
+        if (!hasPriority) {
+            return;
+        }
+
+        final boolean initialAutoCommit = conn.getAutoCommit();
+        conn.setAutoCommit(false);
+        try (Statement s = conn.createStatement()) {
+            s.execute("ALTER TABLE roots RENAME TO roots_legacy_priority;");
+            s.execute("""
+                CREATE TABLE roots (
+                  id       INTEGER PRIMARY KEY,
+                  path     TEXT NOT NULL UNIQUE
+                )
+                """);
+            s.execute("INSERT INTO roots (id, path) SELECT id, path FROM roots_legacy_priority;");
+            s.execute("DROP TABLE roots_legacy_priority;");
+            conn.commit();
+        } catch (SQLException e) {
+            conn.rollback();
+            throw e;
+        } finally {
+            conn.setAutoCommit(initialAutoCommit);
+        }
     }
 
     private static Path resolveDefaultDatabasePath() {

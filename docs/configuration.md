@@ -4,7 +4,7 @@ The `cdf` CLI keeps a small amount of state in two places:
 
 | Location | Purpose |
 |----------|---------|
-| `~/.config/cdf/.cdfRoots` | Ordered list of registered root directories along with their priorities. |
+| `~/.config/cdf/.cdfRoots` | Ordered list of registered root directories (one absolute path per line). |
 | `~/.config/cdf/.cdfIgnore` | Global ignore rules shared across every root. |
 | `<root>/.cdfIgnore` | Optional per-root ignore rules (same syntax as the global file). |
 | `~/.local/share/cdf/index.sqlite` | SQLite database storing the indexed directory metadata (override with `CDF_DATA_DIR`). |
@@ -19,16 +19,17 @@ All config paths can be overridden by setting `CDF_CONFIG_DIR`; otherwise the XD
 
 ```
 # cdf roots file
-# Format: <priority> <absolute-path>
-10 /home/<user>/workspace
-20 /home/<user>/playground
+# Format: <absolute-path>
+/home/<user>/workspace
+/home/<user>/playground
 ```
 
-- **Priority**: lower numbers win when multiple roots contain the same basename.
 - Lines starting with `#` are comments and ignored.
 - Paths are always stored as absolute paths; relative entries will be normalised.
 
-The CLI keeps the file sorted by priority when you run `cdfctl --add-root ...`. You can safely edit the file manually—next launch of `cdfctl` will sync it back into the database.
+Older releases prefixed each line with a numeric priority. Those lines continue to be parsed correctly; the numeric prefix is simply ignored when present. Saving the file through `--add-root` or by editing and re-running the CLI rewrites it using the new single-token format.
+
+The CLI keeps the file sorted alphabetically when you run `cdfctl --add-root ...`. You can safely edit the file manually—next launch of `cdfctl` will sync it back into the database.
 
 ---
 

@@ -83,11 +83,9 @@ Not yet implemented in v0.1.
 1. **Add roots** (directories you want indexed):
 
    ```bash
-   java --enable-native-access=ALL-UNNAMED -jar /usr/local/lib/cdfctl-all.jar --add-root ~/workspace --priority 10
-   java --enable-native-access=ALL-UNNAMED -jar /usr/local/lib/cdfctl-all.jar --add-root ~/playground --priority 20
+   java --enable-native-access=ALL-UNNAMED -jar /usr/local/lib/cdfctl-all.jar --add-root ~/workspace
+   java --enable-native-access=ALL-UNNAMED -jar /usr/local/lib/cdfctl-all.jar --add-root ~/playground
    ```
-
-   Lower priority values outrank higher ones during conflict resolution.
 
 2. **Run the initial reindex**:
 
@@ -114,7 +112,7 @@ Not yet implemented in v0.1.
 | Path | Description |
 |------|-------------|
 | `~/.local/share/cdf/index.sqlite` | SQLite database storing roots and indexed directories (override via `CDF_DATA_DIR`). |
-| `~/.config/cdf/.cdfRoots` | Ordered list of registered roots (auto-maintained by `--add-root`). |
+| `~/.config/cdf/.cdfRoots` | Ordered list of registered roots (one absolute path per line). |
 | `~/.config/cdf/.cdfIgnore` | Global ignore patterns (gitignore syntax, editable). |
 | `src/main/java` | Application source code. |
 | `pom.xml` | Maven configuration & dependencies. |
@@ -126,12 +124,10 @@ Not yet implemented in v0.1.
 
 ```
 # cdf roots file
-# Format: <priority> <absolute-path>
-10 /home/<user>/workspace
-20 /home/<user>/playground
+# Format: <absolute-path>
+/home/<user>/workspace
+/home/<user>/playground
 ```
-
-Priorities are integers where lower values win during conflicts. Paths are normalised to absolute form.
 
 ### 6.2 Example `.cdfIgnore`
 
@@ -161,7 +157,7 @@ Database journaling uses WAL (`index.sqlite-wal`, `index.sqlite-shm`) when the p
 
   ```bash
   mvn clean package
-  sudo cp target/cdf-1.0-SNAPSHOT.jar /usr/local/lib/cdfctl.jar
+  sudo cp target/cdf-1.0-SNAPSHOT-all.jar /usr/local/lib/cdfctl-all.jar
   ```
 
 - **If schema updates occur:** Delete or migrate the data store:

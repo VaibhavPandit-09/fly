@@ -19,15 +19,13 @@ import java.util.Objects;
 /**
  * Handles on-disk configuration under ~/.config/cdf (or XDG equivalent).
  * Maintains:
- * - .cdfRoots : ordered list of root directories with priorities
+     * - .cdfRoots : ordered list of root directories (one absolute path per line)
  * - .cdfIgnore: global ignore patterns (gitignore-style)
  */
 public final class ConfigManager {
     public static final String ROOTS_FILENAME = ".cdfRoots";
     public static final String IGNORE_FILENAME = ".cdfIgnore";
-    private static final int DEFAULT_PRIORITY = 100;
-
-    public record RootEntry(String path, int priority) {}
+    public record RootEntry(String path) {}
 
     private final Path configDir;
     private final Path rootsFile;
@@ -51,7 +49,7 @@ public final class ConfigManager {
         if (Files.notExists(rootsFile)) {
             try (BufferedWriter writer = Files.newBufferedWriter(rootsFile, StandardCharsets.UTF_8)) {
                 writer.write("# cdf roots file\n");
-                writer.write("# Format: <priority> <absolute-path>\n");
+                writer.write("# Format: <absolute-path>\n");
             }
         }
         if (Files.notExists(ignoreFile)) {
@@ -95,14 +93,14 @@ public final class ConfigManager {
     /**
      * Add or update a root in both config file and, optionally, repository (via sync method).
      */
-    public void addOrUpdateRoot(Path rootPath, int priority) throws IOException {
+    public void addOrUpdateRoot(Path rootPath) throws IOException {
         Objects.requireNonNull(rootPath, "rootPath");
         Map<String, RootEntry> byPath = new LinkedHashMap<>();
         for (RootEntry entry : loadRoots()) {
             byPath.put(normalise(entry.path()), entry);
         }
         String key = normalise(rootPath.toString());
-        byPath.put(key, new RootEntry(key, priority));
+        byPath.put(key, new RootEntry(key));
         writeRoots(new ArrayList<>(byPath.values()));
     }
 
@@ -113,7 +111,7 @@ public final class ConfigManager {
         Objects.requireNonNull(repository, "repository");
         for (RootEntry entry : loadRoots()) {
             String path = normalise(entry.path());
-            repository.upsertRoot(path, entry.priority());
+            repository.upsertRoot(path);
         }
     }
 
@@ -154,14 +152,12 @@ public final class ConfigManager {
     }
 
     private void writeRoots(List<RootEntry> entries) throws IOException {
-        entries.sort(Comparator
-                .comparingInt(RootEntry::priority)
-                .thenComparing(RootEntry::path, String.CASE_INSENSITIVE_ORDER));
+        entries.sort(Comparator.comparing(RootEntry::path, String.CASE_INSENSITIVE_ORDER));
         try (BufferedWriter writer = Files.newBufferedWriter(rootsFile, StandardCharsets.UTF_8)) {
             writer.write("# cdf roots file\n");
-            writer.write("# Format: <priority> <absolute-path>\n");
+            writer.write("# Format: <absolute-path>\n");
             for (RootEntry entry : entries) {
-                writer.write(entry.priority() + " " + entry.path());
+                writer.write(entry.path());
                 writer.newLine();
             }
         }
@@ -174,35 +170,21 @@ public final class ConfigManager {
             return null;
         }
 
-        String priorityToken;
-        String pathToken;
+        String pathToken = line;
 
         int firstWhitespace = indexOfWhitespace(line);
-        if (firstWhitespace < 0) {
-            priorityToken = null;
-            pathToken = line;
-        } else {
-            priorityToken = line.substring(0, firstWhitespace).trim();
-            pathToken = line.substring(firstWhitespace + 1).trim();
-        }
-
-        int priority = DEFAULT_PRIORITY;
-        if (priorityToken != null && looksNumeric(priorityToken)) {
-            try {
-                priority = Integer.parseInt(priorityToken);
-            } catch (NumberFormatException ignore) {
-                // leave default priority
-                pathToken = line;
+        if (firstWhitespace >= 0) {
+            String leadingToken = line.substring(0, firstWhitespace).trim();
+            String remainder = line.substring(firstWhitespace + 1).trim();
+            if (!remainder.isEmpty() && looksNumeric(leadingToken)) {
+                pathToken = remainder;
             }
-        } else if (priorityToken != null && !priorityToken.isEmpty()) {
-            // The token was actually part of the path.
-            pathToken = line;
         }
 
-        if (pathToken == null || pathToken.isEmpty()) {
+        if (pathToken.isEmpty()) {
             return null;
         }
-        return new RootEntry(normalise(pathToken), priority);
+        return new RootEntry(normalise(pathToken));
     }
 
     private static int indexOfWhitespace(String line) {

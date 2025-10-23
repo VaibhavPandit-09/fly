@@ -15,14 +15,12 @@ import java.util.Optional;
 
 /**
  * Minimal CLI surface for v0.1:
- * - --add-root <path> [--priority <int>]
+ * - --add-root <path>
  * - --reindex
  * - --list-roots
  * - <basename>
  */
 public final class CdfCli {
-    private static final int DEFAULT_PRIORITY = 100;
-
     private final CdfRepository repository;
     private final ConfigManager configManager;
     private final DirectoryIndexer indexer;
@@ -48,11 +46,17 @@ public final class CdfCli {
                 yield 0;
             }
             case "--add-root" -> handleAddRoot(args);
-            case "--list-r" -> handleListRoots();
+            case "--list-roots" -> handleListRoots();
             case "--count" -> handlePathCount();
             case "--reindex" -> handleReindex();
+            case "--reset"  -> handleDatabaseReset();
             default -> handleBasenameQuery(args);
         };
+    }
+
+    private int handleDatabaseReset() {
+        int deleted = repository.deleteAllRootsAndDirectories();
+        return deleted;
     }
 
     private int handlePathCount() {
@@ -71,10 +75,10 @@ public final class CdfCli {
     private void printUsage() {
         System.out.println("""
                 Usage:
-                  cdfctl --add-root <path> [--priority <int>]   Add or update a root
-                  cdfctl --list-roots                          Show configured roots
-                  cdfctl --reindex                             Rebuild directory index
-                  cdfctl <basename>                            Print path for basename
+                  cdfctl --add-root <path>      Add or update a root
+                  cdfctl --list-roots           Show configured roots
+                  cdfctl --reindex              Rebuild directory index
+                  cdfctl <basename>             Print path for basename
                 """.stripTrailing());
     }
 
@@ -89,44 +93,32 @@ public final class CdfCli {
             return 1;
         }
 
-        int priority = DEFAULT_PRIORITY;
-        if (args.length == 4) {
-            if (!"--priority".equals(args[2])) {
-                System.err.println("Expected --priority <int> after path.");
-                return 1;
-            }
-            try {
-                priority = Integer.parseInt(args[3]);
-            } catch (NumberFormatException e) {
-                System.err.printf("Invalid priority '%s'.%n", args[3]);
-                return 1;
-            }
-        } else if (args.length != 2) {
+        if (args.length != 2) {
             System.err.println("Too many arguments for --add-root.");
             return 1;
         }
 
-        configManager.addOrUpdateRoot(rootPath, priority);
-        repository.upsertRoot(rootPath.toString(), priority);
-        System.out.printf("Root registered: %s (priority %d)%n", rootPath, priority);
+        configManager.addOrUpdateRoot(rootPath);
+        repository.upsertRoot(rootPath.toString());
+        System.out.printf("Root registered: %s%n", rootPath);
         return 0;
     }
 
     private int handleListRoots() throws SQLException {
-        List<CdfRepository.Root> roots = repository.listRootsOrderByPriority();
+        List<CdfRepository.Root> roots = repository.listRoots();
         if (roots.isEmpty()) {
             System.out.println("No roots configured.");
             return 0;
         }
         System.out.println("Config directory: " +configManager.configDir());
         for (CdfRepository.Root root : roots) {
-            System.out.println("priority="+root.id()+" path="+root.path());
+            System.out.println(root.path());
         }
         return 0;
     }
 
     private int handleReindex() throws SQLException, IOException {
-        List<CdfRepository.Root> roots = repository.listRootsOrderByPriority();
+        List<CdfRepository.Root> roots = repository.listRoots();
         if (roots.isEmpty()) {
             System.err.println("No roots configured. Add one with --add-root first.");
             return 1;
@@ -141,13 +133,33 @@ public final class CdfCli {
             return 1;
         }
 
-        Optional<CdfRepository.Directory> match = jumpPaths.resolveByBasename(args[0]);
+        //Check if argument is an index from last call
+        try {
+            int index = Integer.parseInt(args[0]);
+            List<String> pathFromIndex = jumpPaths.getPathFromLastCall(index);
+            if (!pathFromIndex.isEmpty()) {
+                System.out.println(pathFromIndex.get(0));
+                return 0;
+            }
+        } catch (NumberFormatException e) {
+            //Not an integer, proceed to normal basename lookup
+
+        List<String> match = jumpPaths.resolveByBasename(args[0]);
         if (match.isEmpty()) {
             System.err.printf("No directory indexed with basename '%s'.%n", args[0]);
             return 1;
         }
 
-        System.out.println(match.get().fullpath());
+        if (match.size() == 1) {
+            System.out.println(match.get(0));
+        } else {
+            System.out.println("--Multiple matches found--");
+            for (int i = 0; i < match.size(); i++) {
+                System.out.println((i + 1) + ": " + match.get(i));
+            }
+        }
         return 0;
+    }
+    return 0;
     }
 }
