@@ -17,14 +17,17 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Handles on-disk configuration under ~/.config/cdf (or XDG equivalent).
+ * Handles on-disk configuration under ~/.config/fly (or XDG equivalent).
  * Maintains:
-     * - .cdfRoots : ordered list of root directories (one absolute path per line)
- * - .cdfIgnore: global ignore patterns (gitignore-style)
+ * - .flyRoots : ordered list of root directories (one absolute path per line)
+ * - .flyIgnore: global ignore patterns (gitignore-style)
+ * Legacy `.cdf*` files are migrated or read for backwards compatibility.
  */
 public final class ConfigManager {
-    public static final String ROOTS_FILENAME = ".cdfRoots";
-    public static final String IGNORE_FILENAME = ".cdfIgnore";
+    public static final String ROOTS_FILENAME = ".flyRoots";
+    public static final String IGNORE_FILENAME = ".flyIgnore";
+    private static final String LEGACY_ROOTS_FILENAME = ".cdfRoots";
+    private static final String LEGACY_IGNORE_FILENAME = ".cdfIgnore";
     public record RootEntry(String path) {}
 
     private final Path configDir;
@@ -46,15 +49,16 @@ public final class ConfigManager {
      */
     public void ensureLayout() throws IOException {
         Files.createDirectories(configDir);
+        migrateLegacyFilesIfPresent();
         if (Files.notExists(rootsFile)) {
             try (BufferedWriter writer = Files.newBufferedWriter(rootsFile, StandardCharsets.UTF_8)) {
-                writer.write("# cdf roots file\n");
+                writer.write("# fly roots file\n");
                 writer.write("# Format: <absolute-path>\n");
             }
         }
         if (Files.notExists(ignoreFile)) {
             try (BufferedWriter writer = Files.newBufferedWriter(ignoreFile, StandardCharsets.UTF_8)) {
-                writer.write("# cdf global ignore patterns (gitignore syntax)\n");
+                writer.write("# fly global ignore patterns (gitignore syntax)\n");
                 writer.write("# Example:\n");
                 writer.write("# node_modules/\n");
             }
@@ -74,11 +78,22 @@ public final class ConfigManager {
     }
 
     /**
-     * Load root entries from the .cdfRoots file.
+     * Load root entries from the .flyRoots file (with legacy fallback).
      */
     public List<RootEntry> loadRoots() throws IOException {
         if (Files.notExists(rootsFile)) {
-            return Collections.emptyList();
+            Path legacy = configDir.resolve(LEGACY_ROOTS_FILENAME);
+            if (Files.notExists(legacy)) {
+                return Collections.emptyList();
+            }
+            List<RootEntry> legacyEntries = new ArrayList<>();
+            for (String line : Files.readAllLines(legacy, StandardCharsets.UTF_8)) {
+                RootEntry entry = parseRootLine(line);
+                if (entry != null) {
+                    legacyEntries.add(entry);
+                }
+            }
+            return legacyEntries;
         }
         List<RootEntry> entries = new ArrayList<>();
         for (String line : Files.readAllLines(rootsFile, StandardCharsets.UTF_8)) {
@@ -116,19 +131,27 @@ public final class ConfigManager {
     }
 
     public List<String> loadGlobalIgnorePatterns() throws IOException {
-        if (Files.notExists(ignoreFile)) {
-            return List.of();
+        if (Files.exists(ignoreFile)) {
+            return trimComments(Files.readAllLines(ignoreFile, StandardCharsets.UTF_8));
         }
-        return trimComments(Files.readAllLines(ignoreFile, StandardCharsets.UTF_8));
+        Path legacy = configDir.resolve(LEGACY_IGNORE_FILENAME);
+        if (Files.exists(legacy)) {
+            return trimComments(Files.readAllLines(legacy, StandardCharsets.UTF_8));
+        }
+        return List.of();
     }
 
     public List<String> loadRootIgnorePatterns(Path rootPath) throws IOException {
         Objects.requireNonNull(rootPath, "rootPath");
         Path rootIgnore = rootPath.resolve(IGNORE_FILENAME);
-        if (Files.notExists(rootIgnore)) {
-            return List.of();
+        if (Files.exists(rootIgnore)) {
+            return trimComments(Files.readAllLines(rootIgnore, StandardCharsets.UTF_8));
         }
-        return trimComments(Files.readAllLines(rootIgnore, StandardCharsets.UTF_8));
+        Path legacy = rootPath.resolve(LEGACY_IGNORE_FILENAME);
+        if (Files.exists(legacy)) {
+            return trimComments(Files.readAllLines(legacy, StandardCharsets.UTF_8));
+        }
+        return List.of();
     }
 
     public IgnoreRules buildIgnoreRulesForRoot(Path rootPath) throws IOException {
@@ -151,10 +174,22 @@ public final class ConfigManager {
         return cleaned;
     }
 
+    private void migrateLegacyFilesIfPresent() throws IOException {
+        Path legacyDir = resolveLegacyConfigDir();
+        Path legacyRoots = legacyDir.resolve(LEGACY_ROOTS_FILENAME);
+        if (Files.exists(legacyRoots) && Files.notExists(rootsFile)) {
+            Files.copy(legacyRoots, rootsFile);
+        }
+        Path legacyIgnore = legacyDir.resolve(LEGACY_IGNORE_FILENAME);
+        if (Files.exists(legacyIgnore) && Files.notExists(ignoreFile)) {
+            Files.copy(legacyIgnore, ignoreFile);
+        }
+    }
+
     private void writeRoots(List<RootEntry> entries) throws IOException {
         entries.sort(Comparator.comparing(RootEntry::path, String.CASE_INSENSITIVE_ORDER));
         try (BufferedWriter writer = Files.newBufferedWriter(rootsFile, StandardCharsets.UTF_8)) {
-            writer.write("# cdf roots file\n");
+            writer.write("# fly roots file\n");
             writer.write("# Format: <absolute-path>\n");
             for (RootEntry entry : entries) {
                 writer.write(entry.path());
@@ -211,9 +246,39 @@ public final class ConfigManager {
     }
 
     private static Path resolveConfigDir() {
-        String override = System.getenv("CDF_CONFIG_DIR");
+        String override = System.getenv("FLY_CONFIG_DIR");
         if (override != null && !override.isBlank()) {
             return Path.of(override);
+        }
+        String legacyOverride = System.getenv("CDF_CONFIG_DIR");
+        if (legacyOverride != null && !legacyOverride.isBlank()) {
+            return Path.of(legacyOverride);
+        }
+        String xdg = System.getenv("XDG_CONFIG_HOME");
+        if (xdg != null && !xdg.isBlank()) {
+            Path candidate = Path.of(xdg, "fly");
+            Path legacy = Path.of(xdg, "cdf");
+            if (Files.notExists(candidate) && Files.exists(legacy)) {
+                return legacy;
+            }
+            return candidate;
+        }
+        String home = System.getProperty("user.home");
+        if (home == null || home.isBlank()) {
+            throw new IllegalStateException("user.home is not set; cannot resolve config directory");
+        }
+        Path candidate = Path.of(home, ".config", "fly");
+        Path legacy = Path.of(home, ".config", "cdf");
+        if (Files.notExists(candidate) && Files.exists(legacy)) {
+            return legacy;
+        }
+        return candidate;
+    }
+
+    private static Path resolveLegacyConfigDir() {
+        String legacyOverride = System.getenv("CDF_CONFIG_DIR");
+        if (legacyOverride != null && !legacyOverride.isBlank()) {
+            return Path.of(legacyOverride);
         }
         String xdg = System.getenv("XDG_CONFIG_HOME");
         if (xdg != null && !xdg.isBlank()) {
@@ -221,7 +286,7 @@ public final class ConfigManager {
         }
         String home = System.getProperty("user.home");
         if (home == null || home.isBlank()) {
-            throw new IllegalStateException("user.home is not set; cannot resolve config directory");
+            throw new IllegalStateException("user.home is not set; cannot resolve legacy config directory");
         }
         return Path.of(home, ".config", "cdf");
     }

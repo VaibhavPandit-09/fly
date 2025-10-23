@@ -11,8 +11,8 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * Plain Java repository layer for cdf.
- * - Single embedded SQLite database (~/.local/share/cdf/index.sqlite by default)
+ * Plain Java repository layer for fly.
+ * - Single embedded SQLite database (~/.local/share/fly/index.sqlite by default; legacy ~/.local/share/cdf/index.sqlite is honoured)
  * - Creates schema on first run
  * - Exposes CRUD for roots and directories
  * - Provides batch upserts, deletions, basic queries, MRU updates, and stats
@@ -128,21 +128,33 @@ public final class CdfRepository implements AutoCloseable {
                  paths = rs.next() ? Optional.of(rs.getString(1)) : Optional.empty();
             }
         }
-        if (paths.isPresent()) {
-            String pathStr = paths.get();
-            String[] pathArr = pathStr.split(";");
-            List<String> pathList = new ArrayList<>();
-            for (String p : pathArr) {
-                pathList.add(p);
-            }
-            return pathList;
-        } else {
+        if (paths.isEmpty()) {
             return new ArrayList<>();
         }
+        String pathStr = paths.get().trim();
+        if (pathStr.isEmpty()) {
+            return new ArrayList<>();
+        }
+        String[] pathArr = pathStr.split(";");
+        List<String> pathList = new ArrayList<>(pathArr.length);
+        for (String p : pathArr) {
+            String trimmed = p.trim();
+            if (!trimmed.isEmpty()) {
+                pathList.add(trimmed);
+            }
+        }
+        return pathList;
     }
 
     // replace lastcall paths
     public void replaceLastCallPaths(List<String> paths) throws SQLException {
+        if (paths == null || paths.isEmpty()) {
+            try (PreparedStatement ps = requireConn().prepareStatement("DELETE FROM lastcall WHERE id = 1")) {
+                ps.executeUpdate();
+            }
+            return;
+        }
+
         final String sqlInsert = """
             INSERT INTO lastcall (id, paths)
             VALUES (1, ?)
@@ -508,18 +520,32 @@ public final class CdfRepository implements AutoCloseable {
     }
 
     private static Path resolveDefaultDatabasePath() {
-        String override = System.getenv("CDF_DATA_DIR");
+        String override = System.getenv("FLY_DATA_DIR");
         if (override != null && !override.isBlank()) {
             return Path.of(override).resolve("index.sqlite").toAbsolutePath();
         }
+        String legacyOverride = System.getenv("CDF_DATA_DIR");
+        if (legacyOverride != null && !legacyOverride.isBlank()) {
+            return Path.of(legacyOverride).resolve("index.sqlite").toAbsolutePath();
+        }
         String xdgData = System.getenv("XDG_DATA_HOME");
         if (xdgData != null && !xdgData.isBlank()) {
-            return Path.of(xdgData, "cdf", "index.sqlite").toAbsolutePath();
+            Path candidate = Path.of(xdgData, "fly", "index.sqlite").toAbsolutePath();
+            Path legacy = Path.of(xdgData, "cdf", "index.sqlite").toAbsolutePath();
+            if (Files.notExists(candidate) && Files.exists(legacy)) {
+                return legacy;
+            }
+            return candidate;
         }
         String home = System.getProperty("user.home");
         if (home == null || home.isBlank()) {
             return Path.of("index.sqlite").toAbsolutePath();
         }
-        return Path.of(home, ".local", "share", "cdf", "index.sqlite").toAbsolutePath();
+        Path candidate = Path.of(home, ".local", "share", "fly", "index.sqlite").toAbsolutePath();
+        Path legacy = Path.of(home, ".local", "share", "cdf", "index.sqlite").toAbsolutePath();
+        if (Files.notExists(candidate) && Files.exists(legacy)) {
+            return legacy;
+        }
+        return candidate;
     }
 }

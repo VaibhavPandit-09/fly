@@ -1,16 +1,16 @@
-# Build & Setup Guide — cdf v0.1
+# Build & Setup Guide — fly v0.1
 
-This document explains how to build and bootstrap the `cdf` deterministic directory navigator from source, including shell integration, database initialization, and routine maintenance.
+This document explains how to build and bootstrap the `fly` deterministic directory navigator from source, including shell integration, database initialization, and routine maintenance. Legacy `cdf` layouts are migrated or read automatically.
 
 ---
 
 ## 1. Project Snapshot
 
-- **App name:** `cdf`
+- **App name:** `fly`
 - **Version:** `v0.1` (baseline: basic reindex + jump-by-basename)
 - **Language:** Java 25 (source/target)
 - **Build tool:** Maven (or `mvnw` if added later)
-- **Database:** SQLite stored at `~/.local/share/cdf/index.sqlite` (or `$CDF_DATA_DIR/index.sqlite`)
+- **Database:** SQLite stored at `~/.local/share/fly/index.sqlite` (or `$FLY_DATA_DIR/index.sqlite`; legacy `cdf` locations remain supported)
 - **Executable entry point:** `com.inferno.Main`
 
 ---
@@ -45,25 +45,25 @@ Optional (for convenience):
 3. (Optional) Copy or symlink the shaded JAR somewhere on your `PATH`:
 
    ```bash
-   sudo cp target/cdf-1.0-SNAPSHOT-all.jar /usr/local/lib/cdfctl-all.jar
+   sudo cp target/cdf-1.0-SNAPSHOT-all.jar /usr/local/lib/flyctl-all.jar
    ```
 
-   Adjust destination/name as preferred; the examples below assume `/usr/local/lib/cdfctl-all.jar`.
+   Adjust destination/name as preferred; the examples below assume `/usr/local/lib/flyctl-all.jar`.
 
 ---
 
 ## 4. Shell Integration
 
-`cdf` is meant to be wrapped by a shell function so it can return a directory path and have your shell process the `cd` itself.
+`fly` is meant to be wrapped by a shell function so it can return a directory path and have your shell process the `cd` itself.
 
 ### 4.1. Bash / Zsh Function
 
 Append the following snippet to `~/.bashrc` or `~/.zshrc` (adjust path to the shaded JAR):
 
 ```bash
-cdf() {
+fly() {
   local target
-  target=$(java --enable-native-access=ALL-UNNAMED -jar /usr/local/lib/cdfctl-all.jar "$@")
+  target=$(java --enable-native-access=ALL-UNNAMED -jar /usr/local/lib/flyctl-all.jar "$@")
   if [ $? -eq 0 ] && [ -n "$target" ]; then
     cd "$target" || return
   fi
@@ -83,27 +83,28 @@ Not yet implemented in v0.1.
 1. **Add roots** (directories you want indexed):
 
    ```bash
-   java --enable-native-access=ALL-UNNAMED -jar /usr/local/lib/cdfctl-all.jar --add-root ~/workspace
-   java --enable-native-access=ALL-UNNAMED -jar /usr/local/lib/cdfctl-all.jar --add-root ~/playground
+   java --enable-native-access=ALL-UNNAMED -jar /usr/local/lib/flyctl-all.jar --add-root ~/workspace
+   java --enable-native-access=ALL-UNNAMED -jar /usr/local/lib/flyctl-all.jar --add-root ~/playground
    ```
 
 2. **Run the initial reindex**:
 
    ```bash
-   java --enable-native-access=ALL-UNNAMED -jar /usr/local/lib/cdfctl-all.jar --reindex
+   java --enable-native-access=ALL-UNNAMED -jar /usr/local/lib/flyctl-all.jar --reindex
    ```
 
-   This performs a full walk of all configured roots and stores directory entries in the SQLite database (`~/.local/share/cdf/index.sqlite` by default).
+   This performs a full walk of all configured roots and stores directory entries in the SQLite database (`~/.local/share/fly/index.sqlite` by default; legacy `cdf` paths are honoured).
 
 3. **Jump by basename**:
 
    ```bash
-   cdf src
-   cdf services
+   fly src
+   fly services
+   fly 2        # reuse the 2nd match from the previous query (if present)
    ```
 
    Version `v0.1` matches a single directory basename. Future releases will support multi-token queries.
-   Registered roots persist to `~/.config/cdf/.cdfRoots`; edit this file manually if desired. Global ignore patterns live in `~/.config/cdf/.cdfIgnore`. See `docs/configuration.md` for full details and examples.
+   Registered roots persist to `~/.config/fly/.flyRoots`; edit this file manually if desired. Global ignore patterns live at `~/.config/fly/.flyIgnore`. Legacy `.cdf*` files are migrated or still read. See `docs/configuration.md` for full details and examples.
 
 ---
 
@@ -111,27 +112,27 @@ Not yet implemented in v0.1.
 
 | Path | Description |
 |------|-------------|
-| `~/.local/share/cdf/index.sqlite` | SQLite database storing roots and indexed directories (override via `CDF_DATA_DIR`). |
-| `~/.config/cdf/.cdfRoots` | Ordered list of registered roots (one absolute path per line). |
-| `~/.config/cdf/.cdfIgnore` | Global ignore patterns (gitignore syntax, editable). |
+| `~/.local/share/fly/index.sqlite` | SQLite database storing roots and indexed directories (override via `FLY_DATA_DIR`; existing `cdf` paths are detected automatically). |
+| `~/.config/fly/.flyRoots` | Ordered list of registered roots (one absolute path per line). |
+| `~/.config/fly/.flyIgnore` | Global ignore patterns (gitignore syntax, editable). |
 | `src/main/java` | Application source code. |
 | `pom.xml` | Maven configuration & dependencies. |
 | `scripts/schema.sql` | Reference schema for manual inspection (kept in sync with embedded DDL). |
 
-### 6.1 Example `.cdfRoots`
+### 6.1 Example `.flyRoots`
 
-`cdfctl --add-root` keeps this file sorted, but you can also edit it manually:
+`flyctl --add-root` keeps this file sorted, but you can also edit it manually:
 
 ```
-# cdf roots file
+# fly roots file
 # Format: <absolute-path>
 /home/<user>/workspace
 /home/<user>/playground
 ```
 
-### 6.2 Example `.cdfIgnore`
+### 6.2 Example `.flyIgnore`
 
-Global ignore rules live at `~/.config/cdf/.cdfIgnore`; per-root overrides reside at `<root>/.cdfIgnore`. Both accept gitignore syntax:
+Global ignore rules live at `~/.config/fly/.flyIgnore`; per-root overrides reside at `<root>/.flyIgnore`. Both accept gitignore syntax. Legacy `.cdfIgnore` files are still read automatically:
 
 ```
 # shared rules
@@ -145,7 +146,7 @@ Ignored directories are skipped entirely during reindex. See `docs/configuration
 
 ### 6.3 Config Location Overrides
 
-Set `CDF_CONFIG_DIR=/custom/path` to relocate `.cdfRoots` and the global `.cdfIgnore`. Use `CDF_DATA_DIR=/custom/data` to relocate the SQLite store (`index.sqlite` lives under that directory). If unset, XDG environment variables are honoured; otherwise defaults fall back to `~/.config/cdf` and `~/.local/share/cdf` respectively.
+Set `FLY_CONFIG_DIR=/custom/path` to relocate `.flyRoots` and the global `.flyIgnore`. Use `FLY_DATA_DIR=/custom/data` to relocate the SQLite store (`index.sqlite` lives under that directory). Legacy `CDF_*` overrides remain supported. If unset, XDG environment variables are honoured; otherwise defaults fall back to `~/.config/fly` and `~/.local/share/fly` respectively (with automatic fallback to existing `cdf` paths).
 
 Database journaling uses WAL (`index.sqlite-wal`, `index.sqlite-shm`) when the program is running.
 
@@ -157,14 +158,14 @@ Database journaling uses WAL (`index.sqlite-wal`, `index.sqlite-shm`) when the p
 
   ```bash
   mvn clean package
-  sudo cp target/cdf-1.0-SNAPSHOT-all.jar /usr/local/lib/cdfctl-all.jar
+  sudo cp target/cdf-1.0-SNAPSHOT-all.jar /usr/local/lib/flyctl-all.jar
   ```
 
 - **If schema updates occur:** Delete or migrate the data store:
 
   ```bash
-  rm -f ~/.local/share/cdf/index.sqlite*
-  java --enable-native-access=ALL-UNNAMED -jar /usr/local/lib/cdfctl-all.jar --reindex
+  rm -f ~/.local/share/fly/index.sqlite*
+  java --enable-native-access=ALL-UNNAMED -jar /usr/local/lib/flyctl-all.jar --reindex
   ```
 
 - **Rotate roots:** Re-run `--add-root` or `--reindex` as needed. Deleting a root removes all related directories thanks to cascading deletes.
@@ -183,7 +184,7 @@ Database journaling uses WAL (`index.sqlite-wal`, `index.sqlite-shm`) when the p
 ## 9. Next Steps (Roadmap Reference)
 
 - `v0.2`: multi-token search.
-- `v0.3`: `.cdfIgnore` support.
+- `v0.3`: `.flyIgnore` support (legacy `.cdfIgnore` compatibility).
 - `v0.4`: MRU weighting & root prioritisation improvements.
 - `v0.5`: interactive match picker, diagnostics.
 

@@ -11,22 +11,23 @@ import java.nio.file.Path;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 
 /**
  * Minimal CLI surface for v0.1:
  * - --add-root <path>
  * - --reindex
  * - --list-roots
+ * - --count
+ * - --reset
  * - <basename>
  */
-public final class CdfCli {
+public final class FlyCli {
     private final CdfRepository repository;
     private final ConfigManager configManager;
     private final DirectoryIndexer indexer;
     private final JumpPaths jumpPaths;
 
-    public CdfCli(CdfRepository repository, ConfigManager configManager) {
+    public FlyCli(CdfRepository repository, ConfigManager configManager) {
         this.repository = Objects.requireNonNull(repository);
         this.configManager = Objects.requireNonNull(configManager);
         this.indexer = new DirectoryIndexer(repository, configManager);
@@ -75,10 +76,12 @@ public final class CdfCli {
     private void printUsage() {
         System.out.println("""
                 Usage:
-                  cdfctl --add-root <path>      Add or update a root
-                  cdfctl --list-roots           Show configured roots
-                  cdfctl --reindex              Rebuild directory index
-                  cdfctl <basename>             Print path for basename
+                  flyctl --add-root <path>      Add or update a root
+                  flyctl --list-roots           Show configured roots
+                  flyctl --reindex              Rebuild directory index
+                  flyctl --count                Print total indexed directories
+                  flyctl --reset                Drop all roots and indexed directories
+                  fly <basename|index>          Print path for basename or reuse numbered match
                 """.stripTrailing());
     }
 
@@ -141,8 +144,9 @@ public final class CdfCli {
                 System.out.println(pathFromIndex.get(0));
                 return 0;
             }
-        } catch (NumberFormatException e) {
-            //Not an integer, proceed to normal basename lookup
+        } catch (NumberFormatException ignore) {
+            // Fall through to basename lookup.
+        }
 
         List<String> match = jumpPaths.resolveByBasename(args[0]);
         if (match.isEmpty()) {
@@ -159,7 +163,5 @@ public final class CdfCli {
             }
         }
         return 0;
-    }
-    return 0;
     }
 }

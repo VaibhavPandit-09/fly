@@ -6,7 +6,6 @@ import java.sql.SQLException;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 
 /**
  * Resolves jump queries against the indexed directory data.
@@ -23,15 +22,13 @@ public final class JumpPaths {
      * Resolve a single-token basename query to a directory path.
      */
     public List<String> resolveByBasename(String basename) throws SQLException {
-        List<String> paths;
-
         if (basename == null || basename.isBlank()) {
-            return paths = List.of();
+            return List.of();
         }
 
         List<CdfRepository.Directory> matches = repository.findByBasename(basename);
         if (matches.isEmpty()) {
-            return paths = List.of();
+            return List.of();
         }
 
         Comparator<CdfRepository.Directory> comparator = Comparator
@@ -39,7 +36,7 @@ public final class JumpPaths {
                 .thenComparing(CdfRepository.Directory::fullpath);
 
         matches.sort(comparator);
-        paths = matches.stream()
+        List<String> paths = matches.stream()
                 .map(CdfRepository.Directory::fullpath)
                 .toList();
         repository.replaceLastCallPaths(paths);
@@ -48,12 +45,11 @@ public final class JumpPaths {
 
     // Get a path from the last query by its index (1-based)
     public List<String> getPathFromLastCall(int index) {
-        List<String> paths = null;
+        List<String> paths;
         try {
             paths = repository.getLastCallPaths();
         } catch (SQLException e) {
-            // TODO Auto-generated catch block
-            e.printStackTrace();
+            return List.of();
         }
         if (index < 1 || index > paths.size()) {
             return List.of();

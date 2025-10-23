@@ -1,6 +1,6 @@
 package com.inferno;
 
-import com.inferno.cli.CdfCli;
+import com.inferno.cli.FlyCli;
 import com.inferno.config.ConfigManager;
 import com.inferno.database.CdfRepository;
 
@@ -25,7 +25,7 @@ public final class Main {
             configManager.ensureLayout();
             repository.open();
             configManager.syncRoots(repository);
-            return new CdfCli(repository, configManager).execute(args);
+            return new FlyCli(repository, configManager).execute(args);
         } catch (Exception e) {
             System.err.println("Error: " + e.getMessage());
             e.printStackTrace(System.err);

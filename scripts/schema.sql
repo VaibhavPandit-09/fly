@@ -14,6 +14,11 @@ CREATE TABLE IF NOT EXISTS directories (
   segments TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS lastcall (
+  id INTEGER PRIMARY KEY,
+  paths TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_dirs_basename
   ON directories (basename);
 
