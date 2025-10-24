@@ -1,5 +1,13 @@
 # Changelog
 
+## 2025-10-23
+
+- **Issue:** Documentation scattered installation guidance across multiple files and lacked macOS specifics, leading to inconsistent onboarding.  
+  **Resolution:** Rewrote `ReadMe.md`, `Build.md`, and `docs/configuration.md` with unified Linux/macOS/Windows instructions, Mac-specific environment guidance, and aligned shell wrapper examples.
+
+- **Issue:** PowerShell shell wrapper drifted from the Bash implementation after new flag-handling logic was introduced.  
+  **Resolution:** Updated the PowerShell profile function to mirror the Bash behaviour—handling CLI flags, multi-match output, and exit-code checks consistently.
+
 ## 2025-10-22
 
 - **Issue:** Windows installs defaulted to Unix-specific config and data paths, creating state under `%HOMEPATH%\.config` and failing to reuse legacy `cdf` data.  

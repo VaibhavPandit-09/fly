@@ -1,96 +1,161 @@
-# Configuration & Indexing Guide
+# Configuration & Indexing Reference
 
-The `fly` CLI keeps a small amount of state in two places:
-
-| Purpose | Linux / macOS | Windows | Notes |
-|---------|----------------|---------|-------|
-| Roots list | `~/.config/fly/.flyRoots` | `%APPDATA%\fly\.flyRoots` | Legacy `.cdfRoots` files are migrated or read automatically. |
-| Global ignore | `~/.config/fly/.flyIgnore` | `%APPDATA%\fly\.flyIgnore` | Gitignore syntax; `.cdfIgnore` still honoured. |
-| Per-root ignore | `<root>/.flyIgnore` | `<root>/.flyIgnore` | `.cdfIgnore` files read for compatibility. |
-| SQLite database | `~/.local/share/fly/index.sqlite` | `%LOCALAPPDATA%\fly\index.sqlite` | Override via `FLY_DATA_DIR` / `CDF_DATA_DIR`. |
-
-All config paths can be overridden by setting `FLY_CONFIG_DIR`; otherwise the XDG config directory (or `$HOME/.config/fly`) is used on Unix-like systems. On Windows, the CLI automatically falls back to `%APPDATA%\fly` for config and `%LOCALAPPDATA%\fly` for data. Legacy `CDF_CONFIG_DIR` continues to work as a fallback.
+This document dives into how `fly` stores configuration, honours ignore rules, and remains compatible with legacy `cdf` layouts. Refer back to `ReadMe.md` for installation instructions and quick usage tips.
 
 ---
 
-## 1. Roots File (`.flyRoots`)
+## Layout Overview
 
-`fly` reads the `~/.config/fly/.flyRoots` file on startup and synchronises it with the SQLite database (on Windows the default path is `%APPDATA%\fly\.flyRoots`). The file uses a simple format (legacy `.cdfRoots` files are still parsed transparently):
+`fly` keeps two kinds of state: configuration files (roots + ignore rules) and SQLite data. Defaults differ slightly by platform but follow the same structure.
+
+| Purpose | Linux | macOS | Windows | Notes |
+|---------|-------|-------|---------|-------|
+| Config directory | `~/.config/fly` | `~/.config/fly` (or custom) | `%APPDATA%\fly` | Holds `.flyRoots` and `.flyIgnore`. |
+| Data directory | `~/.local/share/fly` | `~/.local/share/fly` (set `FLY_DATA_DIR` to use `~/Library/Application Support/fly`) | `%LOCALAPPDATA%\fly` | Stores `index.sqlite` and WAL companions. |
+| Per-root overrides | `<root>/.flyIgnore` | `<root>/.flyIgnore` | `<root>/.flyIgnore` | Gitignore semantics; `.cdfIgnore` still honoured. |
+
+The directories above are created on first run by `ConfigManager.ensureLayout()` and `CdfRepository.open()`. You may point them elsewhere with environment variables (see below).
+
+---
+
+## Roots File (`.flyRoots`)
+
+- Location: `<config-dir>/.flyRoots`.
+- Format: one absolute path per line; comments begin with `#`.
+- Legacy support: `.cdfRoots` files (with optional numeric prefixes) are parsed transparently.
+
+Example:
 
 ```
 # fly roots file
 # Format: <absolute-path>
-/home/<user>/workspace
-/home/<user>/playground
+/home/alex/workspace
+/srv/repos
 ```
 
-- Lines starting with `#` are comments and ignored.
-- Paths are always stored as absolute paths; relative entries will be normalised.
-
-Older releases prefixed each line with a numeric priority. Those lines continue to be parsed correctly; the numeric prefix is simply ignored when present. Saving the file through `--add-root` or by editing and re-running the CLI rewrites it using the new single-token format.
-
-The CLI keeps the file sorted alphabetically when you run `flyctl --add-root ...`. You can safely edit the file manually—next launch of `flyctl` will sync it back into the database.
+`flyctl --add-root` normalises and sorts the entries when writing the file. Manual edits are fine; the next CLI invocation syncs the contents to SQLite.
 
 ---
 
-## 2. Ignore Files (`.flyIgnore`)
+## Ignore Rules (`.flyIgnore`)
 
-Ignore files adopt Git’s `gitignore` rules, with the following behaviour:
+Ignore files follow Git’s syntax:
 
-- Blank lines or comments (`# ...`) are ignored.
-- A leading `!` negates a previous rule.
-- Trailing `/` restricts the rule to directories.
-- `*` matches characters within a path segment; `**` matches across segments.
-- Leading `/` anchors the match to the root; otherwise the rule is matched anywhere within the path.
+- Blank lines and comments (`#`) are ignored.
+- Trailing `/` limits the rule to directories.
+- `*` matches characters inside a segment; `**` crosses segment boundaries.
+- `!` negates a previous match.
+- Leading `/` anchors the pattern to the start of the path.
 
-### 2.1 Global Ignore (`~/.config/fly/.flyIgnore` or `%APPDATA%\fly\.flyIgnore`)
+### Precedence
 
-Applies to every indexed root. Example:
+1. Global file: `<config-dir>/.flyIgnore`.
+2. Per-root file: `<root>/.flyIgnore`.
+3. Legacy equivalents: `.cdfIgnore` in either location.
+
+Rules are merged in that order. Later matches (including negations) override earlier ones.
+
+Example global file (Linux/macOS path):
 
 ```
-# global noise
+# shared noise
 .git/
 node_modules/
-target/
 **/build/
 ```
 
-### 2.2 Per-Root Ignore (`<root>/.flyIgnore`)
-
-Place a `.flyIgnore` file inside a registered root to provide overrides specific to that root. Example (`/home/<user>/workspace/.flyIgnore`):
+Per-root override:
 
 ```
-# Ignore generated docs in this repo only
+# keep docs in this repo
 docs/
 !docs/.keep
 ```
 
-Rules are evaluated in order: global file first, then root-specific. Negated rules (`!pattern`) can re-include directories previously ignored by a broader pattern. Existing `.cdfIgnore` files in either location are still respected.
+---
+
+## Environment Overrides
+
+| Variable | Scope | Example (Linux/macOS) | Example (Windows) |
+|----------|-------|-----------------------|-------------------|
+| `FLY_CONFIG_DIR` | Entire config directory | `export FLY_CONFIG_DIR="$HOME/Library/Application Support/fly/config"` | `$env:FLY_CONFIG_DIR = "$env:APPDATA\fly-config"` |
+| `FLY_DATA_DIR` | SQLite directory | `export FLY_DATA_DIR="$HOME/Library/Application Support/fly/data"` | `$env:FLY_DATA_DIR = "$env:LOCALAPPDATA\fly-data"` |
+| `CDF_CONFIG_DIR` | Legacy override | `export CDF_CONFIG_DIR="$HOME/.cdf-config"` | `$env:CDF_CONFIG_DIR = "$env:APPDATA\cdf"` |
+| `CDF_DATA_DIR` | Legacy override | `export CDF_DATA_DIR="$HOME/.cdf-data"` | `$env:CDF_DATA_DIR = "$env:LOCALAPPDATA\cdf"` |
+| `XDG_CONFIG_HOME` | Linux/macOS XDG | `export XDG_CONFIG_HOME="$HOME/.config"` | n/a |
+| `XDG_DATA_HOME` | Linux/macOS XDG | `export XDG_DATA_HOME="$HOME/.local/share"` | n/a |
+
+Resolution order:
+
+1. Explicit `FLY_*` overrides.
+2. Legacy `CDF_*` overrides (for backwards compatibility).
+3. XDG variables (Linux/macOS).
+4. Platform defaults (Windows: `%APPDATA%` / `%LOCALAPPDATA%`; Linux/macOS: `~/.config`, `~/.local/share`).
+
+Set overrides before launching the CLI (e.g., export them in your shell profile).
 
 ---
 
-## 3. Indexing Behaviour
+## Legacy `cdf` Compatibility
 
-- When you run `flyctl --reindex`, the tool wipes previously indexed paths for each root and walks the filesystem.
-- Directories matching ignore rules are skipped entirely; their children are not traversed.
-- Metadata for each directory (basename, full path, depth, timestamps) is written to `~/.local/share/fly/index.sqlite` (or `%LOCALAPPDATA%\fly\index.sqlite` on Windows, or the custom `FLY_DATA_DIR` location, with automatic fallback to legacy paths).
-- Root entries in `.flyRoots` are normalised to absolute paths. If a root is removed from the file, deleting its row from `.flyRoots` manually and re-running `flyctl --reindex` will drop associated entries thanks to foreign-key cascade.
-- To support numeric recall (`fly <index>`), the CLI stores the most recent query result list inside the SQLite database and overwrites it on the next lookup. Legacy data is reused if present.
+`fly` automatically reuses existing `cdf` assets when new paths are absent:
 
----
+- If `.flyRoots` is missing but `.cdfRoots` exists, the file is copied on first run.
+- If `.flyIgnore` is missing, any `.cdfIgnore` file becomes the initial source.
+- When no `fly/index.sqlite` is present, but a legacy `cdf/index.sqlite` exists, the repository points to the legacy database until a new file is created.
+- Environment variables `CDF_CONFIG_DIR` and `CDF_DATA_DIR` still function. Prefer the new `FLY_*` variables for clean setups.
 
-## 4. Environment Overrides
-
-| Variable | Description |
-|----------|-------------|
-| `FLY_CONFIG_DIR` | Override the location of `.flyRoots` and the global `.flyIgnore` (legacy `CDF_CONFIG_DIR` remains supported). |
-| `FLY_DATA_DIR` | Override the base directory for the SQLite database (default `~/.local/share/fly`; legacy `CDF_DATA_DIR` remains supported). |
-| `XDG_CONFIG_HOME` | Used automatically if set (e.g., on Linux/BSD systems). |
-| `%APPDATA%`, `%LOCALAPPDATA%` | Used automatically on Windows when explicit overrides are not provided. |
-| JVM flag | Add `--enable-native-access=ALL-UNNAMED` when invoking `java` to silence JDK native-loading warnings from SQLite. |
-
-If neither is set, `fly` falls back to `$HOME/.config/fly` on Unix-like systems or `%APPDATA%\fly` on Windows, reusing legacy `cdf` paths if they already exist.
+This behaviour makes upgrades transparent for existing users.
 
 ---
 
-Keep this document aligned with code changes—especially if the config schema or ignore semantics evolve beyond the current MVP.
+## Inspecting and Maintaining the Index
+
+- **Inspect schema**
+  ```bash
+  sqlite3 ~/.local/share/fly/index.sqlite ".tables"
+  sqlite3 ~/.local/share/fly/index.sqlite "PRAGMA table_info(directories);"
+  ```
+- **Manual cleanup** – Remove `index.sqlite`, `index.sqlite-wal`, and `index.sqlite-shm` when the CLI is not running; the next `--reindex` rebuilds everything.
+- **Integrity check** – Running `flyctl --reindex` automatically recreates missing schema objects and ensures referential integrity.
+
+---
+
+## Windows & macOS Tips
+
+- **macOS Application Support** – Set `FLY_CONFIG_DIR` / `FLY_DATA_DIR` to subdirectories of `~/Library/Application Support/fly` for a more native layout. Create the directories before invoking the CLI.
+- **macOS symlinks** – If you prefer dotfiles under `~/.config`, but want Finder-visible state, symlink `~/Library/Application Support/fly` to `~/.config/fly`.
+- **Windows roaming profiles** – Keep config under `%APPDATA%` (roaming) and data under `%LOCALAPPDATA%` (machine-specific) as per defaults. This avoids large SQLite files being synced across profiles.
+- **PowerShell scripts** – When automating reindexing, use:
+  ```powershell
+  java --enable-native-access=ALL-UNNAMED -jar C:\tools\fly\flyctl-all.jar --reindex
+  ```
+  Run from `Task Scheduler` with “Run whether user is logged on or not” for background maintenance.
+
+---
+
+## Advanced Ignore Techniques
+
+- **Anchor to root** – `/build/` ignores only directories named `build` at the root of each indexed project.
+- **Segment wildcards** – `**/tmp/` skips `tmp` directories at any depth.
+- **Negation** – `!important/` re-includes a directory previously ignored by a broader pattern.
+- **Conditional hints** – Combining ignore rules with hint tokens (e.g., `fly service api`) lets you keep broad ignores while querying niche paths.
+
+Test ignore patterns by running `flyctl --reindex` with `FLY_LOG_LEVEL=TRACE` (future roadmap) or by temporarily printing directories during indexing.
+
+---
+
+## Frequently Asked Questions
+
+- **Can I share indices between machines?**  
+  Not recommended. The database stores absolute paths; copy the relevant `.flyRoots` file instead and reindex on each machine.
+
+- **How do I exclude specific repositories entirely?**  
+  Remove the path from `.flyRoots` and run `flyctl --reindex`. Foreign-key cascades remove all associated directories.
+
+- **Can I index removable drives?**  
+  Yes, but ensure they are mounted before running `--reindex` or performing queries; missing roots are skipped with a warning and their entries are removed.
+
+---
+
+Need more operational detail? Reach out via repository issues or discussions and keep the documentation updated alongside code changes.

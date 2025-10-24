@@ -1,162 +1,335 @@
 # fly — Deterministic Directory Navigator
 
-`fly` is a command-line helper that lets you jump to any indexed directory deterministically. Instead of guessing based on usage frequency, `fly` matches directory basenames (and eventually ordered tokens) against a curated index that you control. Existing `cdf` installs continue to work; legacy paths are detected automatically.
+`fly` is a cross-platform command-line companion that jumps you into any indexed directory deterministically. Instead of ranking by usage heuristics, `fly` indexes the directories you care about (roots that you control) in SQLite and resolves queries by basename, optional hints, or a recently returned index. Legacy `cdf` installations remain compatible—the tool migrates or reuses their data automatically.
 
 ---
 
-## Current Capabilities (v0.1)
+## Highlights
 
-- **SQLite-backed index** stored at `~/.local/share/fly/index.sqlite` (override with `FLY_DATA_DIR`; legacy `CDF_DATA_DIR` and locations are honoured).
-- **Root management** via `--add-root` and `--list-roots`.
-- **Full reindex** over all configured roots with `.flyIgnore` support (global + per-root gitignore syntax, legacy `.cdfIgnore` still read).
-- **Single-token jumps** ranked by directory depth, with numbered disambiguation.
-- **Quick re-selection**: rerun `fly <index>` to emit a path from the last multi-match.
-- **Silent runtime**: embedded SLF4J NOP binder, native loading disabled (no noisy warnings).
-- **Shaded CLI artifact** (`cdf-1.0-SNAPSHOT-all.jar`) bundles SQLite and logging dependencies.
-
-See `Changelog.md` for a running log of fixes and decisions.
+- **Deterministic results** – Each query resolves against a curated SQLite index, sorted by depth for predictable output.
+- **Cross-platform** – Works on Linux, macOS, and Windows (PowerShell), respecting platform-specific config/data locations and legacy `cdf` paths.
+- **Zero-noise runtime** – Bundled SLF4J NOP binder and disabled native loading keep the CLI quiet.
+- **Token hints** – Provide extra path hints (e.g., `fly api service`) to filter results.
+- **Last-call recall** – Re-run `fly 2` to reuse the second entry returned by the previous multi-match.
+- **Shaded distribution** – Packaging produces a self-contained JAR (`cdf-1.0-SNAPSHOT-all.jar`) with SQLite and logging dependencies baked in.
 
 ---
 
-## Install & Build
+## How `fly` Works
+
+1. **Roots** – You register one or more root directories. They are stored in a config file (`.flyRoots`) and mirrored into SQLite.
+2. **Indexing** – `flyctl --reindex` traverses each root, recording directory metadata (basename, full path, depth, modified time, slash-delimited segments). Ignore rules (global and per-root) prune unwanted directories.
+3. **Queries** – `fly <basename>` fetches matching directories, sorts them, and prints the result. Subsequent hint tokens narrow matches.
+4. **Jumping** – Wrap the CLI with a shell function that executes the JAR and `cd`s into the returned path when successful.
+
+Code structure:
+
+| Module | Responsibility |
+|--------|----------------|
+| `com.inferno.cli.FlyCli` | Parses CLI arguments and delegates to logic/data layers. |
+| `com.inferno.logic.DirectoryIndexer` | Walks roots, respects ignore files, writes directory metadata. |
+| `com.inferno.logic.JumpPaths` | Resolves basename/hint queries and persists “last call” results. |
+| `com.inferno.config.ConfigManager` | Manages config layout, migrations, ignore patterns. |
+| `com.inferno.database.CdfRepository` | JDBC wrapper for SQLite with schema bootstrapping and queries. |
+
+---
+
+## Quick Start (TL;DR)
+
+1. Install JDK 25 and Maven 3.9+ (see platform notes below).
+2. Clone this repository and run:
+   ```bash
+   mvn clean package
+   ```
+3. Copy `target/cdf-1.0-SNAPSHOT-all.jar` somewhere convenient (`/usr/local/lib/flyctl-all.jar`, `~/Library/Application Support/fly/flyctl-all.jar`, or `C:\tools\fly\flyctl-all.jar`).
+4. Add the matching shell function (Bash/Zsh for Linux/macOS, PowerShell for Windows).
+5. Register a root, reindex, and start jumping:
+   ```bash
+   flyctl --add-root ~/workspace
+   flyctl --reindex
+   fly services
+   ```
+
+---
+
+## Platform Setup Guides
+
+### Linux
 
 1. **Prerequisites**
-   - JDK 25 and Maven 3.9+ are required (`java -version`, `mvn -version` to verify).
-   - Windows users should ensure `%JAVA_HOME%` targets a JDK 25 install and that `mvn` is on `PATH` (e.g., via Chocolatey: `choco install openjdk maven`).
-2. **Build the shaded CLI**
+   ```bash
+   sudo apt install openjdk-25-jdk maven          # Ubuntu / Debian
+   # or
+   sudo dnf install java-25-openjdk-devel maven   # Fedora / RHEL
+   ```
+   Confirm with `java -version` and `mvn -version`.
 
+2. **Build & package**
    ```bash
    mvn clean package
    ```
 
-   Maven produces both the thin artifact and the shaded executable `target/cdf-1.0-SNAPSHOT-all.jar`.
+3. **Install the shaded JAR**
+   ```bash
+   sudo install -D target/cdf-1.0-SNAPSHOT-all.jar /usr/local/lib/flyctl-all.jar
+   ```
 
-3. **Place the JAR somewhere convenient**
-   - Linux / macOS:
+4. **Shell integration** – See [Shell Integration (Bash/Zsh)](#shell-integration-bashzsh).
 
-     ```bash
-     sudo cp target/cdf-1.0-SNAPSHOT-all.jar /usr/local/lib/flyctl-all.jar
-     ```
+### macOS
 
-   - Windows (PowerShell):
+1. **Prerequisites**
+   ```bash
+    brew install openjdk maven
+   ```
+   Ensure the Homebrew JDK is on your PATH (Intel uses `/usr/local`, Apple Silicon uses `/opt/homebrew`):
+   ```bash
+   export PATH="/opt/homebrew/opt/openjdk/bin:$PATH"
+   ```
 
-     ```powershell
-     New-Item -ItemType Directory -Force C:\tools\fly | Out-Null
-     Copy-Item target\cdf-1.0-SNAPSHOT-all.jar C:\tools\fly\flyctl-all.jar
-     ```
+2. **Build & package**
+   ```bash
+   mvn clean package
+   ```
 
-     Adjust the destination to taste; the examples below assume `C:\tools\fly\flyctl-all.jar`.
+3. **Install the shaded JAR**
+   ```bash
+   mkdir -p "$HOME/Library/Application Support/fly"
+   cp target/cdf-1.0-SNAPSHOT-all.jar "$HOME/Library/Application Support/fly/flyctl-all.jar"
+   ```
+   (You may keep using `/usr/local/lib` if you prefer parity with Linux.)
 
-4. **Wire the CLI into your shell**
-   - Bash / Zsh — append to `~/.bashrc` or `~/.zshrc`:
+4. **Shell integration** – macOS defaults to Zsh. Add the Bash/Zsh function to `~/.zshrc` and update the JAR path.
 
-     ```bash
-     fly() {
-       local target
-       target=$(java --enable-native-access=ALL-UNNAMED -jar /usr/local/lib/flyctl-all.jar "$@")
-       if [ $? -eq 0 ] && [ -n "$target" ]; then
-         cd "$target" || return
-       fi
-     }
-     ```
+5. **Optional** – To align with macOS conventions, set custom config/data roots:
+   ```bash
+   export FLY_CONFIG_DIR="$HOME/Library/Application Support/fly/config"
+   export FLY_DATA_DIR="$HOME/Library/Application Support/fly/data"
+   ```
 
-   - PowerShell — add to your PowerShell profile (`code $PROFILE`):
+### Windows
 
-     ```powershell
-     function fly {
-       param(
-         [Parameter(ValueFromRemainingArguments = $true)]
-         [string[]] $Args
-       )
-       $target = & java --enable-native-access=ALL-UNNAMED -jar C:\tools\fly\flyctl-all.jar @Args
-       if ($LASTEXITCODE -eq 0 -and $target) {
-         Set-Location $target
-       }
-     }
-     ```
+1. **Prerequisites**
+   ```powershell
+   winget install EclipseAdoptium.Temurin.25.JDK
+   winget install Apache.Maven
+   ```
+   (Chocolatey alternative: `choco install temurin17 maven`.)
 
-Docs: `Build.md` (setup), `docs/configuration.md` (roots, ignores, env overrides).
+2. **Build & package**
+   ```powershell
+   mvn clean package
+   ```
+
+3. **Install the shaded JAR**
+   ```powershell
+   New-Item -ItemType Directory -Force C:\tools\fly | Out-Null
+   Copy-Item target\cdf-1.0-SNAPSHOT-all.jar C:\tools\fly\flyctl-all.jar
+   ```
+
+4. **Shell integration** – Add the PowerShell function to your profile (see below).
 
 ---
 
-## Usage Cheatsheet
+## Shell Integration (Bash/Zsh)
+
+Add this function to `~/.bashrc`, `~/.bash_profile`, or `~/.zshrc`, adjusting the JAR path for your installation:
 
 ```bash
-# Register roots
-java --enable-native-access=ALL-UNNAMED -jar /usr/local/lib/flyctl-all.jar --add-root ~/workspace
-java --enable-native-access=ALL-UNNAMED -jar /usr/local/lib/flyctl-all.jar --add-root ~/playground
+fly() {
+  local target
 
-# Rebuild the index (global + per-root ignore respected)
-java --enable-native-access=ALL-UNNAMED -jar /usr/local/lib/flyctl-all.jar --reindex
+  # Pass-through for CLI flags (no directory change)
+  if [[ $1 == --* ]]; then
+    java --enable-native-access=ALL-UNNAMED -jar /usr/local/lib/flyctl-all.jar "$@"
+    return
+  }
 
-# Count indexed directories
-java --enable-native-access=ALL-UNNAMED -jar /usr/local/lib/flyctl-all.jar --count
+  # Run Java and capture the output
+  target=$(java --enable-native-access=ALL-UNNAMED -jar /usr/local/lib/flyctl-all.jar "$@")
 
-# Jump by basename
-fly services
+  # Multi-match output starts with "--"
+  if [[ $target == --* ]]; then
+    echo "$target"
+    return
+  }
 
-# Reuse a numbered match from the previous query
-fly 2
-
-# List configured roots
-java --enable-native-access=ALL-UNNAMED -jar /usr/local/lib/flyctl-all.jar --list-roots
-
-# Reset database and roots (drops everything)
-java --enable-native-access=ALL-UNNAMED -jar /usr/local/lib/flyctl-all.jar --reset
+  # Change directory only when the command succeeded and returned a non-empty path
+  if [[ $? -eq 0 && -n $target ]]; then
+    cd "$target" || return
+  }
+}
 ```
-On Windows replace `/usr/local/lib/flyctl-all.jar` with the path you copied the shaded JAR to (e.g., `C:\tools\fly\flyctl-all.jar`).
 
-### Configuration Files
+For macOS, replace `/usr/local/lib/flyctl-all.jar` with `"${HOME}/Library/Application Support/fly/flyctl-all.jar"` (remember to quote the path).
 
-| Purpose | Linux / macOS default | Windows default |
-|---------|-----------------------|-----------------|
-| Roots list | `~/.config/fly/.flyRoots` | `%APPDATA%\fly\.flyRoots` |
-| Global ignore | `~/.config/fly/.flyIgnore` | `%APPDATA%\fly\.flyIgnore` |
-| Per-root ignore | `<root>/.flyIgnore` | `<root>/.flyIgnore` |
-| SQLite store | `~/.local/share/fly/index.sqlite` | `%LOCALAPPDATA%\fly\index.sqlite` |
+Reload your shell (`source ~/.bashrc`, `source ~/.zshrc`, or start a new terminal).
 
-Legacy `cdf` layouts (`.cdfRoots`, `.cdfIgnore`, `cdf/index.sqlite`) are migrated or read automatically in each location.
+---
+
+## Shell Integration (PowerShell)
+
+Edit your PowerShell profile (`code $PROFILE`) and add:
+
+```powershell
+function fly {
+  param(
+    [Parameter(ValueFromRemainingArguments = $true)]
+    [string[]] $Args
+  )
+
+  if ($Args.Count -gt 0 -and $Args[0].StartsWith("--")) {
+    & java --enable-native-access=ALL-UNNAMED -jar C:\tools\fly\flyctl-all.jar @Args
+    return
+  }
+
+  $target = & java --enable-native-access=ALL-UNNAMED -jar C:\tools\fly\flyctl-all.jar @Args
+  $exitCode = $LASTEXITCODE
+
+  if ($target -and $target.TrimStart().StartsWith("--")) {
+    Write-Output $target
+    return
+  }
+
+  if ($exitCode -eq 0 -and -not [string]::IsNullOrWhiteSpace($target)) {
+    Set-Location $target
+  }
+}
+```
+
+Reload the profile with `. $PROFILE` or open a new Windows Terminal session.
+
+---
+
+## CLI Usage
+
+| Command | Description |
+|---------|-------------|
+| `flyctl --add-root <path>` | Register or update a root directory. |
+| `flyctl --list-roots` | Print configured roots and the active config directory. |
+| `flyctl --count` | Show the total number of indexed directories. |
+| `flyctl --reindex` | Rebuild the directory index for all roots. |
+| `flyctl --reset` | Drop all roots and indexed directories (prints number removed). |
+| `fly <basename>` | Resolve a basename and print the best match. |
+| `fly hint1 hint2 basename` | Filter results using optional hint tokens before the basename. |
+| `fly <index>` | Reuse a numbered entry from the previous multi-match. |
+
+Example session:
+
+```bash
+flyctl --add-root ~/workspace
+flyctl --add-root ~/sandbox
+flyctl --reindex
+fly services
+fly 2
+flyctl --count
+```
+
+---
+
+## Configuration & Data Locations
+
+| Purpose | Linux | macOS | Windows | Notes |
+|---------|-------|-------|---------|-------|
+| Roots list | `~/.config/fly/.flyRoots` | `~/.config/fly/.flyRoots` (override via `FLY_CONFIG_DIR`) | `%APPDATA%\fly\.flyRoots` | Legacy `.cdfRoots` files are migrated or read automatically. |
+| Global ignore | `~/.config/fly/.flyIgnore` | `~/.config/fly/.flyIgnore` | `%APPDATA%\fly\.flyIgnore` | Gitignore syntax; `.cdfIgnore` files are still honoured. |
+| Per-root ignore | `<root>/.flyIgnore` | `<root>/.flyIgnore` | `<root>/.flyIgnore` | `.cdfIgnore` also respected for backwards compatibility. |
+| SQLite database | `~/.local/share/fly/index.sqlite` | `~/.local/share/fly/index.sqlite` (set `FLY_DATA_DIR` to use `~/Library/Application Support/fly`) | `%LOCALAPPDATA%\fly\index.sqlite` | SQLite WAL (`index.sqlite-wal`, `index.sqlite-shm`) is enabled. |
 
 Environment overrides:
 
-| Variable | Purpose |
-|----------|---------|
-| `FLY_CONFIG_DIR` | Relocate `.flyRoots` / global `.flyIgnore`. (`CDF_CONFIG_DIR` continues to work as a fallback.) |
-| `FLY_DATA_DIR` | Relocate the SQLite store. (`CDF_DATA_DIR` remains supported.) |
-| `XDG_CONFIG_HOME`, `XDG_DATA_HOME` | Honoured automatically on Unix-like systems. |
-| `%APPDATA%`, `%LOCALAPPDATA%` | Used automatically on Windows when XDG and explicit overrides are absent. |
+| Variable | Effect |
+|----------|--------|
+| `FLY_CONFIG_DIR` | Relocate `.flyRoots` and the global `.flyIgnore`. |
+| `FLY_DATA_DIR` | Relocate the SQLite data directory. |
+| `CDF_CONFIG_DIR`, `CDF_DATA_DIR` | Legacy overrides still honoured when modern vars are absent. |
+| `XDG_CONFIG_HOME`, `XDG_DATA_HOME` | Applied automatically on Unix-like systems. |
 
 ---
 
-## Testing & Diagnostics
+## macOS Notes
 
-- `java --enable-native-access=ALL-UNNAMED -jar ... --reindex` doubles as an integrity check (schema is re-created if missing).
-- `java --enable-native-access=ALL-UNNAMED -jar ... --list-roots` confirms configuration sync between files and SQLite.
-- `Changelog.md` captures known issues and fixes (e.g., packaging, logging noise).
-
-SQLite WAL files (`index.sqlite-wal`, `index.sqlite-shm`) live alongside the primary database. Safe to delete when the CLI is not running; a reindex will rebuild from scratch.
-
----
-
-## Roadmap
-
-| Milestone | Status | Highlights |
-|-----------|--------|------------|
-| **v0.1** | ✅ | Basename jump, SQLite storage, `.flyIgnore`, shaded packaging, silent logging. |
-| **v0.2** | 🚧 | Multi-token ordered search (query like `fly project api`). |
-| **v0.3** | 📌 | Incremental refresh (`--refresh`), directory change detection. |
-| **v0.4** | 📌 | MRU ranking, richer list output, additional ranking heuristics. |
-| **v0.5** | 📌 | Interactive picker (fzf fallback), stats/diagnostics commands. |
-| **v1.0** | 📌 | Cross-platform polish, installers, scheduled reindex integration. |
-
-Ideas under evaluation: cached query suggestions, optional fuzzy fallback, integration with shell completion frameworks.
+- macOS defaults to Zsh; place the shell function in `~/.zshrc` (or `~/.zprofile`) and restart the terminal.
+- Spotlight or Time Machine can change directory metadata; re-run `flyctl --reindex` after large moves.
+- To embrace macOS conventions, set `FLY_CONFIG_DIR`/`FLY_DATA_DIR` to subdirectories of `~/Library/Application Support/fly`.
+- Automate reindexing with `launchd` by pointing a job at `/usr/bin/java --enable-native-access=ALL-UNNAMED -jar <path>/flyctl-all.jar --reindex`.
 
 ---
 
-## Contributing / Next Steps
+## Maintenance & Upgrades
 
-- Keep `Changelog.md`, `Build.md`, and `docs/configuration.md` in sync when behaviours change.
-- Prefer shaded builds (`*-all.jar`) for distribution; ensures JDBC driver availability.
-- Open issues for feature requests or divergence between documentation and behaviour. A short repro (`--list-roots`, `--reindex`, sample `.flyRoots`) helps a ton.
+- **Upgrade**:
+  ```bash
+  git pull
+  mvn clean package
+  sudo cp target/cdf-1.0-SNAPSHOT-all.jar /usr/local/lib/flyctl-all.jar          # Linux/macOS
+  Copy-Item target\cdf-1.0-SNAPSHOT-all.jar C:\tools\fly\flyctl-all.jar          # Windows
+  ```
+- **Reindex**: `flyctl --reindex`
+- **Reset state**: `flyctl --reset`
+- **Inspect database**: `sqlite3 ~/.local/share/fly/index.sqlite ".tables"` (adjust path per OS)
+
+---
+
+## Development
+
+- Run tests (currently placeholder):
+  ```bash
+  mvn test
+  ```
+- Package without tests:
+  ```bash
+  mvn -DskipTests package
+  ```
+- Inspect shaded JAR:
+  ```bash
+  jar tf target/cdf-1.0-SNAPSHOT-all.jar | head
+  ```
+
+Project layout:
+
+| Path | Description |
+|------|-------------|
+| `src/main/java/com/inferno/cli` | CLI entry points and argument parsing. |
+| `src/main/java/com/inferno/logic` | Indexing and jump resolution logic. |
+| `src/main/java/com/inferno/config` | Configuration management and ignore rules. |
+| `src/main/java/com/inferno/database` | SQLite repository layer. |
+| `scripts/` | Helper scripts (schema references, utilities). |
+| `docs/` | Supplemental documentation. |
+
+---
+
+## Troubleshooting
+
+- **`mvn` not found** – Install Maven and ensure it is exported on `PATH`.
+- **Java version mismatch** – Set `JAVA_HOME` to a JDK 25 installation (`export JAVA_HOME=/path/to/jdk`).
+- **`flyctl --reindex` fails** – Ensure roots exist and are readable; check ignore rules.
+- **Database locked** – Close other clients and remove WAL files (`index.sqlite-wal`, `index.sqlite-shm`) when the CLI is not running.
+- **Shell function prints nothing** – Confirm the JAR path and verify `java --enable-native-access=ALL-UNNAMED -jar ...` runs successfully on its own.
+- **PowerShell profile not loading** – `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`.
+
+---
+
+## Roadmap & Changelog
+
+- Feature roadmap lives in repository issues/projects.
+- Detailed history: [`Changelog.md`](Changelog.md).
+
+---
+
+## Contributing
+
+1. Fork and branch (`git checkout -b feature/my-change`).
+2. Keep documentation in sync with behaviour (README, Build.md, docs/configuration.md, Changelog.md).
+3. Run `mvn clean package` before submitting pull requests.
+4. Describe testing steps, platforms covered, and any doc updates in the PR.
+
+---
+
+## License
+
+No explicit license is currently provided. Contact the maintainers before redistributing binaries or derived work.
+
+---
 
 Happy deterministic hopping!

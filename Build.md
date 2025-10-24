@@ -1,89 +1,119 @@
-# Build & Setup Guide — fly v0.1
+# Developer Build Handbook — fly v0.1
 
-This document explains how to build and bootstrap the `fly` deterministic directory navigator from source, including shell integration, database initialization, and routine maintenance. Legacy `cdf` layouts are migrated or read automatically.
-
----
-
-## 1. Project Snapshot
-
-- **App name:** `fly`
-- **Version:** `v0.1` (baseline: basic reindex + jump-by-basename)
-- **Language:** Java 25 (source/target)
-- **Build tool:** Maven (or `mvnw` if added later)
-- **Database:** SQLite stored at `~/.local/share/fly/index.sqlite` (or `$FLY_DATA_DIR/index.sqlite`; legacy `cdf` locations remain supported)
-- **Executable entry point:** `com.inferno.Main`
+This guide targets contributors who need to build, package, and verify `fly` across Linux, macOS, and Windows. End users can follow the streamlined instructions in `ReadMe.md`; the sections below expand on tooling setup, repeatable scripts, and release hygiene.
 
 ---
 
-## 2. Prerequisites
+## Environment Matrix
 
-| Tool | Notes |
-|------|-------|
-| JDK 25 | Ensure `java` and `javac` point to the 25 toolchain (`java -version`). |
-| Maven 3.9+ | Install via distro package manager or download from <https://maven.apache.org/download.cgi>. Add `mvn` to your `PATH`. |
-| SQLite JDBC driver | Pulled automatically by Maven (`org.xerial:sqlite-jdbc:3.46.0.0`). |
+| Platform | JDK 25 | Maven 3.9+ | Notes |
+|----------|--------|------------|-------|
+| Linux (Ubuntu/Debian) | `sudo apt install openjdk-25-jdk` | `sudo apt install maven` | Ensure `$JAVA_HOME` and `$PATH` update after installation. |
+| Linux (Fedora/RHEL) | `sudo dnf install java-25-openjdk-devel` | `sudo dnf install maven` | SELinux users may need to allow writes under `~/.local/share/fly`. |
+| macOS | `brew install openjdk maven` | Bundled with Homebrew | Export `PATH="/opt/homebrew/opt/openjdk/bin:$PATH"` for Apple Silicon. |
+| Windows | `winget install EclipseAdoptium.Temurin.25.JDK` | `winget install Apache.Maven` | PowerShell profile should set `JAVA_HOME` if multiple JDKs exist. |
 
-Optional (for convenience):
+Verify your toolchain:
 
-- `fzf` for interactive selection (future versions).
-- `cron`/`systemd` to schedule periodic reindex (future versions).
-
----
-
-## 3. First-Time Build
-
-1. Clone the repo and enter the project directory.
-2. Download Maven dependencies & compile:
-
-   ```bash
-   mvn dependency:go-offline
-   mvn -DskipTests package
-   ```
-
-   Maven emits both the plain artifact and a shaded executable `target/cdf-1.0-SNAPSHOT-all.jar` that bundles SQLite and other dependencies.
-
-3. (Optional) Copy or symlink the shaded JAR somewhere on your `PATH`:
-
-   - Linux / macOS:
-
-     ```bash
-     sudo cp target/cdf-1.0-SNAPSHOT-all.jar /usr/local/lib/flyctl-all.jar
-     ```
-
-   - Windows (PowerShell):
-
-     ```powershell
-     New-Item -ItemType Directory -Force C:\tools\fly | Out-Null
-     Copy-Item target\cdf-1.0-SNAPSHOT-all.jar C:\tools\fly\flyctl-all.jar
-     ```
-
-   Adjust destination/name as preferred; the examples below assume `/usr/local/lib/flyctl-all.jar` on Unix-like systems and `C:\tools\fly\flyctl-all.jar` on Windows.
+```bash
+java -version
+mvn -version
+```
 
 ---
 
-## 4. Shell Integration
+## Common Build Tasks
 
-`fly` is meant to be wrapped by a shell function so it can return a directory path and have your shell process the `cd` itself.
+| Command | Description |
+|---------|-------------|
+| `mvn dependency:go-offline` | Prefetch Maven dependencies (useful for CI or air-gapped environments). |
+| `mvn clean package` | Produce both thin and shaded JARs (tests enabled). |
+| `mvn -DskipTests package` | Package quickly without executing tests. |
+| `mvn test` | Run the current test suite (placeholder for now). |
+| `jar tf target/cdf-1.0-SNAPSHOT-all.jar | head` | Sanity-check shaded contents. |
 
-### 4.1. Bash / Zsh Function
+Artifacts:
 
-Append the following snippet to `~/.bashrc` or `~/.zshrc` (adjust path to the shaded JAR):
+- Thin JAR: `target/cdf-1.0-SNAPSHOT.jar`
+- Shaded JAR: `target/cdf-1.0-SNAPSHOT-all.jar` (used by distributions and docs)
+
+---
+
+## Platform Build & Install Recipes
+
+### Linux
+
+```bash
+mvn clean package
+sudo install -D target/cdf-1.0-SNAPSHOT-all.jar /usr/local/lib/flyctl-all.jar
+```
+
+Optional verification:
+
+```bash
+java --enable-native-access=ALL-UNNAMED -jar /usr/local/lib/flyctl-all.jar --help
+```
+
+### macOS
+
+```bash
+mvn clean package
+mkdir -p "$HOME/Library/Application Support/fly"
+cp target/cdf-1.0-SNAPSHOT-all.jar "$HOME/Library/Application Support/fly/flyctl-all.jar"
+```
+
+If you prefer parity with Linux, copy the JAR to `/usr/local/lib` and reuse the same shell snippet.
+
+### Windows (PowerShell)
+
+```powershell
+mvn clean package
+New-Item -ItemType Directory -Force C:\tools\fly | Out-Null
+Copy-Item target\cdf-1.0-SNAPSHOT-all.jar C:\tools\fly\flyctl-all.jar
+```
+
+Smoke-test:
+
+```powershell
+java --enable-native-access=ALL-UNNAMED -jar C:\tools\fly\flyctl-all.jar --help
+```
+
+---
+
+## Shell Wrappers (Developer Reference)
+
+### Bash / Zsh Function
 
 ```bash
 fly() {
   local target
+
+  # If the first argument starts with "--", treat it as a flag
+  if [[ $1 == --* ]]; then
+    java --enable-native-access=ALL-UNNAMED -jar /usr/local/lib/flyctl-all.jar "$@"
+    return
+  }
+
+  # Run Java and capture its output
   target=$(java --enable-native-access=ALL-UNNAMED -jar /usr/local/lib/flyctl-all.jar "$@")
-  if [ $? -eq 0 ] && [ -n "$target" ]; then
+
+  # If Java returns a flag-like string (starting with "--"), print it instead of cd
+  if [[ $target == --* ]]; then
+    echo "$target"
+    return
+  }
+
+  # If the command succeeded and returned a non-empty path, cd into it
+  if [[ $? -eq 0 && -n $target ]]; then
     cd "$target" || return
-  fi
+  }
 }
 ```
 
-Reload your shell (`source ~/.bashrc`) or open a new session.
+- Update the JAR path for macOS if you store it under `~/Library/Application Support/fly`.
+- For Fish or other shells, wrap the call similarly—capturing stderr/stdout and checking the exit code before `cd`.
 
-### 4.2. PowerShell Function
-
-Add this function to your PowerShell profile (`code $PROFILE`) and update the JAR path if you chose a different location:
+### PowerShell Function
 
 ```powershell
 function fly {
@@ -91,154 +121,58 @@ function fly {
     [Parameter(ValueFromRemainingArguments = $true)]
     [string[]] $Args
   )
+  if ($Args.Count -gt 0 -and $Args[0].StartsWith("--")) {
+    & java --enable-native-access=ALL-UNNAMED -jar C:\tools\fly\flyctl-all.jar @Args
+    return
+  }
+
   $target = & java --enable-native-access=ALL-UNNAMED -jar C:\tools\fly\flyctl-all.jar @Args
-  if ($LASTEXITCODE -eq 0 -and $target) {
+  $exitCode = $LASTEXITCODE
+
+  if ($target -and $target.TrimStart().StartsWith("--")) {
+    Write-Output $target
+    return
+  }
+
+  if ($exitCode -eq 0 -and -not [string]::IsNullOrWhiteSpace($target)) {
     Set-Location $target
   }
 }
 ```
 
-Reload the session (`. $PROFILE`) or open a fresh PowerShell window.
-
-### 4.3. Autocompletion (optional)
-
-Not yet implemented in v0.1.
+Quote the `-jar` path if your install directory contains spaces. Reload the profile with `. $PROFILE`.
 
 ---
 
-## 5. Configure Roots & Index
+## Verification Checklist
 
-1. **Add roots** (directories you want indexed):
-
-   ```bash
-   java --enable-native-access=ALL-UNNAMED -jar /usr/local/lib/flyctl-all.jar --add-root ~/workspace
-   java --enable-native-access=ALL-UNNAMED -jar /usr/local/lib/flyctl-all.jar --add-root ~/playground
-   ```
-
-2. **Run the initial reindex**:
-
-   ```bash
-   java --enable-native-access=ALL-UNNAMED -jar /usr/local/lib/flyctl-all.jar --reindex
-   ```
-
-   This performs a full walk of all configured roots and stores directory entries in the SQLite database (`~/.local/share/fly/index.sqlite` by default; legacy `cdf` paths are honoured).
-
-3. **Jump by basename**:
-
-   ```bash
-   fly src
-   fly services
-   fly 2        # reuse the 2nd match from the previous query (if present)
-   ```
-
-   Version `v0.1` matches a single directory basename. Future releases will support multi-token queries.
-   Registered roots persist to `~/.config/fly/.flyRoots`; edit this file manually if desired. Global ignore patterns live at `~/.config/fly/.flyIgnore`. Legacy `.cdf*` files are migrated or still read. See `docs/configuration.md` for full details and examples.
+1. `flyctl --add-root <path>` against a small sample directory.
+2. `flyctl --reindex` succeeds and prints the indexed count.
+3. `fly foo` returns a deterministic path; if multiple results appear, `fly 2` reproduces the second entry.
+4. `flyctl --count` reports the correct number of directories.
+5. `flyctl --reset` prints (`Reset complete; removed … indexed entries.`) and sets exit code `0`.
+6. Repeat the smoke test on all supported shells (Bash/Zsh/PowerShell).
 
 ---
 
-## 6. File Layout & Data
+## Release Checklist
 
-| Purpose | Linux / macOS | Windows | Notes |
-|---------|----------------|---------|-------|
-| SQLite database | `~/.local/share/fly/index.sqlite` | `%LOCALAPPDATA%\fly\index.sqlite` | Override via `FLY_DATA_DIR` / `CDF_DATA_DIR`; legacy `cdf` paths are reused automatically. |
-| Roots list | `~/.config/fly/.flyRoots` | `%APPDATA%\fly\.flyRoots` | One absolute path per line; legacy `.cdfRoots` files are migrated or read. |
-| Global ignore | `~/.config/fly/.flyIgnore` | `%APPDATA%\fly\.flyIgnore` | Gitignore syntax; legacy `.cdfIgnore` files remain supported. |
-| Per-root ignore | `<root>/.flyIgnore` | `<root>/.flyIgnore` | Applies after global rules; `.cdfIgnore` respected. |
-| Shell wrapper | `~/.bashrc`, `~/.zshrc` | PowerShell profile (`$PROFILE`) | Add the `fly` function to integrate `cd`. |
-
-Repository artefacts:
-
-| Path | Description |
-|------|-------------|
-| `src/main/java` | Application source code. |
-| `pom.xml` | Maven configuration & dependencies. |
-| `scripts/schema.sql` | Reference schema for manual inspection (kept in sync with embedded DDL). |
-
-### 6.1 Example `.flyRoots`
-
-`flyctl --add-root` keeps this file sorted, but you can also edit it manually:
-
-```
-# fly roots file
-# Format: <absolute-path>
-/home/<user>/workspace
-/home/<user>/playground
-```
-
-### 6.2 Example `.flyIgnore`
-
-Global ignore rules live at `~/.config/fly/.flyIgnore`; per-root overrides reside at `<root>/.flyIgnore`. Both accept gitignore syntax. Legacy `.cdfIgnore` files are still read automatically:
-
-```
-# shared rules
-.git/
-node_modules/
-**/build/
-!**/build/.keep
-```
-
-Ignored directories are skipped entirely during reindex. See `docs/configuration.md` for a full explanation of precedence and advanced patterns.
-
-### 6.3 Config Location Overrides
-
-Set `FLY_CONFIG_DIR=/custom/path` to relocate `.flyRoots` and the global `.flyIgnore`. Use `FLY_DATA_DIR=/custom/data` to relocate the SQLite store (`index.sqlite` lives under that directory). Legacy `CDF_*` overrides remain supported. If unset, XDG environment variables are honoured; otherwise defaults fall back to `~/.config/fly` and `~/.local/share/fly` on Unix-like systems, or `%APPDATA%\fly` and `%LOCALAPPDATA%\fly` on Windows (with automatic fallback to existing `cdf` paths).
-
-Database journaling uses WAL (`index.sqlite-wal`, `index.sqlite-shm`) when the program is running.
+1. Update `pom.xml` version if shipping a tagged release.
+2. Refresh documentation (`ReadMe.md`, `docs/configuration.md`, `Changelog.md`).
+3. `mvn clean package` (no warnings beyond Maven/Guava deprecation).
+4. Verify shaded JAR launches with `--help` on Linux/macOS/Windows.
+5. Publish artifacts or copy to distribution channel.
 
 ---
 
-## 7. Updating / Rebuilding
+## Troubleshooting Build Failures
 
-- **After pulling code changes:**
-
-  ```bash
-  mvn clean package
-  sudo cp target/cdf-1.0-SNAPSHOT-all.jar /usr/local/lib/flyctl-all.jar
-  ```
-
-  Windows (PowerShell):
-
-  ```powershell
-  mvn clean package
-  Copy-Item target\cdf-1.0-SNAPSHOT-all.jar C:\tools\fly\flyctl-all.jar
-  ```
-
-- **If schema updates occur:** Delete or migrate the data store:
-
-  ```bash
-  rm -f ~/.local/share/fly/index.sqlite*
-  java --enable-native-access=ALL-UNNAMED -jar /usr/local/lib/flyctl-all.jar --reindex
-  ```
-
-  Windows (PowerShell):
-
-  ```powershell
-  Remove-Item -Path $env:LOCALAPPDATA\fly\index.sqlite* -ErrorAction SilentlyContinue
-  java --enable-native-access=ALL-UNNAMED -jar C:\tools\fly\flyctl-all.jar --reindex
-  ```
-
-- **Rotate roots:** Re-run `--add-root` or `--reindex` as needed. Deleting a root removes all related directories thanks to cascading deletes.
+- **Guava `sun.misc.Unsafe` warnings**: emitted by Maven itself, safe to ignore; ensure you run with JDK 25+.
+- **`Unsupported class file major version`**: indicates an older JDK on `PATH`; adjust `JAVA_HOME`.
+- **Permission errors when copying JAR**: prefix with `sudo` (Linux/macOS) or run PowerShell as Administrator if copying into protected locations.
+- **`No suitable driver` at runtime**: confirm you executed the shaded JAR (`*-all.jar`), not the thin artifact.
+- **Windows path issues**: always quote the PowerShell path if it contains spaces, e.g., `"C:\Program Files\fly\flyctl-all.jar"`.
 
 ---
 
-## 8. Troubleshooting
-
-- **`mvn: command not found`:** Install Maven and ensure it is on the `PATH`.
-- **Java version mismatch:** Set `JAVA_HOME` to a JDK 25 installation and export `PATH=$JAVA_HOME/bin:$PATH`.
-- **`No roots configured`:** Run `--add-root` before attempting `--reindex` or basename jumps.
-- **Permission issues:** Ensure the shell function’s JAR path is readable and the database directory is writable.
-
----
-
-## 9. Next Steps (Roadmap Reference)
-
-- `v0.2`: multi-token search.
-- `v0.3`: `.flyIgnore` support (legacy `.cdfIgnore` compatibility).
-- `v0.4`: MRU weighting & root prioritisation improvements.
-- `v0.5`: interactive match picker, diagnostics.
-
-Keep this document updated as new features or build changes land.
-
----
-
-Happy deterministic hopping!
+Need deeper operational details (scheduled reindex, ignore rules, config layout)? See `docs/configuration.md` for an exhaustive reference.
