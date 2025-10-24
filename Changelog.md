@@ -8,6 +8,9 @@
 - **Issue:** PowerShell shell wrapper drifted from the Bash implementation after new flag-handling logic was introduced.  
   **Resolution:** Updated the PowerShell profile function to mirror the Bash behaviour—handling CLI flags, multi-match output, and exit-code checks consistently.
 
+- **Issue:** Manual setup required multiple steps, discouraging new users.  
+  **Resolution:** Added one-step installers (`scripts/install-fly.sh`, `scripts/install-fly.ps1`), documented usage in `ReadMe.md`, and shipped a maintainer playbook (`docs/installer-setup.md`).
+
 ## 2025-10-22
 
 - **Issue:** Windows installs defaulted to Unix-specific config and data paths, creating state under `%HOMEPATH%\.config` and failing to reuse legacy `cdf` data.  

@@ -160,8 +160,9 @@ Quote the `-jar` path if your install directory contains spaces. Reload the prof
 1. Update `pom.xml` version if shipping a tagged release.
 2. Refresh documentation (`ReadMe.md`, `docs/configuration.md`, `Changelog.md`).
 3. `mvn clean package` (no warnings beyond Maven/Guava deprecation).
-4. Verify shaded JAR launches with `--help` on Linux/macOS/Windows.
-5. Publish artifacts or copy to distribution channel.
+4. Copy `target/cdf-1.0-SNAPSHOT-all.jar` to `flyctl-all.jar` (the name used by the installers).
+5. Verify the shaded JAR launches with `--help` on Linux/macOS/Windows.
+6. Publish artifacts or copy to distribution channel (see `docs/installer-setup.md` for details).
 
 ---
 
@@ -175,4 +176,4 @@ Quote the `-jar` path if your install directory contains spaces. Reload the prof
 
 ---
 
-Need deeper operational details (scheduled reindex, ignore rules, config layout)? See `docs/configuration.md` for an exhaustive reference.
+Need deeper operational details (scheduled reindex, ignore rules, config layout)? See `docs/configuration.md`. For release automation and installer upkeep, refer to `docs/installer-setup.md`.

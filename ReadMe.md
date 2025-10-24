@@ -52,6 +52,39 @@ Code structure:
 
 ---
 
+## One-Step Installation
+
+Prefer an automated setup? As long as Java 25 is on your PATH, you can bootstrap `fly` with a single command.
+
+### Linux / macOS
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/inferno/cdf/main/scripts/install-fly.sh | bash
+```
+
+The script downloads the shaded JAR into `~/.local/share/fly`, appends the shell wrapper to your default profile (`~/.bashrc` or `~/.zshrc`), and keeps reruns idempotent. Override defaults by exporting any of:
+
+- `FLY_INSTALL_REPO` (`owner/repo`, default `inferno/cdf`)
+- `FLY_INSTALL_TAG` (GitHub release tag, default `latest`)
+- `FLY_INSTALL_DIR` (where to store the JAR, default `~/.local/share/fly`)
+- `FLY_INSTALL_JAR` (asset name, default `flyctl-all.jar`)
+- `FLY_INSTALL_PROFILE` (explicit profile file)
+
+After the installer runs, reload your shell (`source ~/.bashrc`) and try `fly --help`.
+
+### Windows (PowerShell 5+)
+
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force;
+iex "& { $(iwr https://raw.githubusercontent.com/inferno/cdf/main/scripts/install-fly.ps1 -UseBasicParsing) }"
+```
+
+The PowerShell installer mirrors the Bash behaviour: it places the JAR under `%LOCALAPPDATA%\fly`, updates your `$PROFILE` with the wrapper function, and can be rerun to upgrade. You can customize the same settings via environment variables (`FLY_INSTALL_*`) or parameters (`-Repo`, `-Tag`, `-InstallDir`, `-JarName`).
+
+Need to audit the scripts first? They live in [`scripts/install-fly.sh`](scripts/install-fly.sh) and [`scripts/install-fly.ps1`](scripts/install-fly.ps1).
+
+---
+
 ## Platform Setup Guides
 
 ### Linux
@@ -268,6 +301,7 @@ Environment overrides:
 - **Reindex**: `flyctl --reindex`
 - **Reset state**: `flyctl --reset`
 - **Inspect database**: `sqlite3 ~/.local/share/fly/index.sqlite ".tables"` (adjust path per OS)
+- **One-step installer upkeep**: follow `docs/installer-setup.md` when publishing new releases or relocating assets.
 
 ---
 
