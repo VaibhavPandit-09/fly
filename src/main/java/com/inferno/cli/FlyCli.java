@@ -131,10 +131,24 @@ public final class FlyCli {
     }
 
     private int handleBasenameQuery(String[] args) throws SQLException {
-        if (args.length != 1) {
-            System.err.println("v0.1 only supports single-token basename queries.");
-            return 1;
+
+        if (args.length > 1) {
+            List<String> pathFromHints = jumpPaths.resolveByHintsAndBasename(args);
+            if (pathFromHints.isEmpty()) {
+                System.err.printf("No directory indexed matching hints and basename '%s'.%n", args[args.length - 1]);
+                return 1;
+            }
+            if (pathFromHints.size() == 1) {
+                System.out.println(pathFromHints.get(0));
+            } else {
+                System.out.println("--Multiple matches found--");
+                for (int i = 0; i < pathFromHints.size(); i++) {
+                    System.out.println((i + 1) + ": " + pathFromHints.get(i));
+                }
+            }
+            return 0;
         }
+        
 
         //Check if argument is an index from last call
         try {

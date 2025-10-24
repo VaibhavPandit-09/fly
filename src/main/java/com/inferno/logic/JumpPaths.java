@@ -43,6 +43,41 @@ public final class JumpPaths {
         return paths;
     }
 
+    // Take an string array. Last element is basename. All preceding elements are hints.
+    public List<String> resolveByHintsAndBasename(String[] tokens) throws SQLException {
+        if (tokens == null || tokens.length == 0) {
+            return List.of();
+        }
+        String basename = tokens[tokens.length - 1];
+        if (basename.isBlank()) {
+            return List.of();
+        }
+        List<String> paths = resolveByBasename(basename);
+
+        if (tokens.length == 1) {
+            return paths;
+        }
+        // Apply hints filtering. Hints are to be found somewhere in the path. The order of hints does not matter.
+        for (int i = 0; i < tokens.length - 1; i++) {
+            String hint = tokens[i].toLowerCase();
+            if (hint.isBlank()) {
+                continue;
+            }
+            paths = paths.stream()
+                    .filter(path -> path.toLowerCase().contains(hint))
+                    .toList();
+            if (paths.isEmpty()) {
+                break;
+            }
+        }
+        if(paths.size() == 1) {
+            return paths;
+        }
+        repository.replaceLastCallPaths(paths);
+        return paths;
+    
+    }
+
     // Get a path from the last query by its index (1-based)
     public List<String> getPathFromLastCall(int index) {
         List<String> paths;
@@ -56,4 +91,6 @@ public final class JumpPaths {
         }
         return List.of(paths.get(index - 1));
     }
+
+
 }
