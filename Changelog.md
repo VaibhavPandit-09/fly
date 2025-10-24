@@ -1,5 +1,16 @@
 # Changelog
 
+## 2025-10-22
+
+- **Issue:** Windows installs defaulted to Unix-specific config and data paths, creating state under `%HOMEPATH%\.config` and failing to reuse legacy `cdf` data.  
+  **Resolution:** Config and repository layers now detect Windows automatically, preferring `%APPDATA%\fly` and `%LOCALAPPDATA%\fly`, while still honouring legacy overrides (`CDF_*`) and documented environment variables.
+
+- **Issue:** `flyctl --reset` returned the number of deleted rows as the process exit code, causing successful resets to look like failures in calling scripts.  
+  **Resolution:** CLI now reports a success message and exits with code `0` after reset, preserving the deleted row count in the message.
+
+- **Issue:** Multi-token hint filtering relied on the default JVM locale, producing incorrect results in certain locales (e.g., Turkish).  
+  **Resolution:** Hint comparisons are now performed using `Locale.ROOT` for deterministic, case-insensitive matching.
+
 ## 2025-10-21
 
 - **Issue:** SLF4J and native-access warnings still appeared during `cdf` execution even after bundling dependencies.  

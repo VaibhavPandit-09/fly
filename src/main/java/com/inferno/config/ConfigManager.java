@@ -13,6 +13,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -263,6 +264,17 @@ public final class ConfigManager {
             }
             return candidate;
         }
+        if (isWindows()) {
+            String appData = System.getenv("APPDATA");
+            if (appData != null && !appData.isBlank()) {
+                Path candidate = Path.of(appData, "fly");
+                Path legacy = Path.of(appData, "cdf");
+                if (Files.notExists(candidate) && Files.exists(legacy)) {
+                    return legacy;
+                }
+                return candidate;
+            }
+        }
         String home = System.getProperty("user.home");
         if (home == null || home.isBlank()) {
             throw new IllegalStateException("user.home is not set; cannot resolve config directory");
@@ -284,10 +296,21 @@ public final class ConfigManager {
         if (xdg != null && !xdg.isBlank()) {
             return Path.of(xdg, "cdf");
         }
+        if (isWindows()) {
+            String appData = System.getenv("APPDATA");
+            if (appData != null && !appData.isBlank()) {
+                return Path.of(appData, "cdf");
+            }
+        }
         String home = System.getProperty("user.home");
         if (home == null || home.isBlank()) {
             throw new IllegalStateException("user.home is not set; cannot resolve legacy config directory");
         }
         return Path.of(home, ".config", "cdf");
+    }
+
+    private static boolean isWindows() {
+        String os = System.getProperty("os.name");
+        return os != null && os.toLowerCase(Locale.ROOT).contains("win");
     }
 }

@@ -57,14 +57,15 @@ public final class FlyCli {
 
     private int handleDatabaseReset() {
         int deleted = repository.deleteAllRootsAndDirectories();
-        return deleted;
+        System.out.printf("Reset complete; removed %,d indexed entries.%n", deleted);
+        return 0;
     }
 
     private int handlePathCount() {
         Long n;
         try {
             n = repository.countDirectories();
-            System.out.println("Total number of indexed paths : "+n);
+            System.out.printf("Total indexed directories: %,d%n", n);
         } catch (SQLException e) {
             e.printStackTrace();
             return 1;

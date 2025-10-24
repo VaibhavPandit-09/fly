@@ -5,6 +5,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.*;
 import java.time.Instant;
+import java.util.Locale;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -537,6 +538,26 @@ public final class CdfRepository implements AutoCloseable {
             }
             return candidate;
         }
+        if (isWindows()) {
+            String localAppData = System.getenv("LOCALAPPDATA");
+            if (localAppData != null && !localAppData.isBlank()) {
+                Path candidate = Path.of(localAppData, "fly", "index.sqlite").toAbsolutePath();
+                Path legacy = Path.of(localAppData, "cdf", "index.sqlite").toAbsolutePath();
+                if (Files.notExists(candidate) && Files.exists(legacy)) {
+                    return legacy;
+                }
+                return candidate;
+            }
+            String appDataFallback = System.getenv("APPDATA");
+            if (appDataFallback != null && !appDataFallback.isBlank()) {
+                Path candidate = Path.of(appDataFallback, "fly", "index.sqlite").toAbsolutePath();
+                Path legacy = Path.of(appDataFallback, "cdf", "index.sqlite").toAbsolutePath();
+                if (Files.notExists(candidate) && Files.exists(legacy)) {
+                    return legacy;
+                }
+                return candidate;
+            }
+        }
         String home = System.getProperty("user.home");
         if (home == null || home.isBlank()) {
             return Path.of("index.sqlite").toAbsolutePath();
@@ -547,5 +568,10 @@ public final class CdfRepository implements AutoCloseable {
             return legacy;
         }
         return candidate;
+    }
+
+    private static boolean isWindows() {
+        String os = System.getProperty("os.name");
+        return os != null && os.toLowerCase(Locale.ROOT).contains("win");
     }
 }

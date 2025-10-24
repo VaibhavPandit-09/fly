@@ -59,12 +59,12 @@ public final class JumpPaths {
         }
         // Apply hints filtering. Hints are to be found somewhere in the path. The order of hints does not matter.
         for (int i = 0; i < tokens.length - 1; i++) {
-            String hint = tokens[i].toLowerCase();
+            String hint = tokens[i].toLowerCase(java.util.Locale.ROOT);
             if (hint.isBlank()) {
                 continue;
             }
             paths = paths.stream()
-                    .filter(path -> path.toLowerCase().contains(hint))
+                    .filter(path -> path.toLowerCase(java.util.Locale.ROOT).contains(hint))
                     .toList();
             if (paths.isEmpty()) {
                 break;

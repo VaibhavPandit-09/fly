@@ -20,13 +20,62 @@ See `Changelog.md` for a running log of fixes and decisions.
 
 ## Install & Build
 
-| Step | Command / Notes |
-|------|-----------------|
-| Prerequisites | JDK 25, Maven 3.9+. |
-| Build | `mvn clean package` (produces `target/cdf-1.0-SNAPSHOT-all.jar`). |
-| Deploy | `sudo cp target/cdf-1.0-SNAPSHOT-all.jar /usr/local/lib/flyctl-all.jar` |
-| Shell function | Append to `~/.bashrc` or `~/.zshrc`:<br/>```bash<br/>fly() {<br/>  local target<br/>  target=$(java --enable-native-access=ALL-UNNAMED -jar /usr/local/lib/flyctl-all.jar "$@")<br/>  if [ $? -eq 0 ] && [ -n "$target" ]; then<br/>    cd "$target" || return<br/>  fi<br/>}<br/>``` |
-| Docs | `Build.md` (setup), `docs/configuration.md` (roots, ignores, env overrides). |
+1. **Prerequisites**
+   - JDK 25 and Maven 3.9+ are required (`java -version`, `mvn -version` to verify).
+   - Windows users should ensure `%JAVA_HOME%` targets a JDK 25 install and that `mvn` is on `PATH` (e.g., via Chocolatey: `choco install openjdk maven`).
+2. **Build the shaded CLI**
+
+   ```bash
+   mvn clean package
+   ```
+
+   Maven produces both the thin artifact and the shaded executable `target/cdf-1.0-SNAPSHOT-all.jar`.
+
+3. **Place the JAR somewhere convenient**
+   - Linux / macOS:
+
+     ```bash
+     sudo cp target/cdf-1.0-SNAPSHOT-all.jar /usr/local/lib/flyctl-all.jar
+     ```
+
+   - Windows (PowerShell):
+
+     ```powershell
+     New-Item -ItemType Directory -Force C:\tools\fly | Out-Null
+     Copy-Item target\cdf-1.0-SNAPSHOT-all.jar C:\tools\fly\flyctl-all.jar
+     ```
+
+     Adjust the destination to taste; the examples below assume `C:\tools\fly\flyctl-all.jar`.
+
+4. **Wire the CLI into your shell**
+   - Bash / Zsh — append to `~/.bashrc` or `~/.zshrc`:
+
+     ```bash
+     fly() {
+       local target
+       target=$(java --enable-native-access=ALL-UNNAMED -jar /usr/local/lib/flyctl-all.jar "$@")
+       if [ $? -eq 0 ] && [ -n "$target" ]; then
+         cd "$target" || return
+       fi
+     }
+     ```
+
+   - PowerShell — add to your PowerShell profile (`code $PROFILE`):
+
+     ```powershell
+     function fly {
+       param(
+         [Parameter(ValueFromRemainingArguments = $true)]
+         [string[]] $Args
+       )
+       $target = & java --enable-native-access=ALL-UNNAMED -jar C:\tools\fly\flyctl-all.jar @Args
+       if ($LASTEXITCODE -eq 0 -and $target) {
+         Set-Location $target
+       }
+     }
+     ```
+
+Docs: `Build.md` (setup), `docs/configuration.md` (roots, ignores, env overrides).
 
 ---
 
@@ -55,12 +104,18 @@ java --enable-native-access=ALL-UNNAMED -jar /usr/local/lib/flyctl-all.jar --lis
 # Reset database and roots (drops everything)
 java --enable-native-access=ALL-UNNAMED -jar /usr/local/lib/flyctl-all.jar --reset
 ```
+On Windows replace `/usr/local/lib/flyctl-all.jar` with the path you copied the shaded JAR to (e.g., `C:\tools\fly\flyctl-all.jar`).
 
 ### Configuration Files
 
-- `~/.config/fly/.flyRoots` — Machine-readable root list (one absolute path per line). Legacy `~/.config/cdf/.cdfRoots` will be migrated on demand.
-- `~/.config/fly/.flyIgnore` — Global gitignore-style rules (legacy `.cdfIgnore` is still honoured if present).
-- `<root>/.flyIgnore` — Per-root overrides, merged after global (`.cdfIgnore` files are also read for compatibility).
+| Purpose | Linux / macOS default | Windows default |
+|---------|-----------------------|-----------------|
+| Roots list | `~/.config/fly/.flyRoots` | `%APPDATA%\fly\.flyRoots` |
+| Global ignore | `~/.config/fly/.flyIgnore` | `%APPDATA%\fly\.flyIgnore` |
+| Per-root ignore | `<root>/.flyIgnore` | `<root>/.flyIgnore` |
+| SQLite store | `~/.local/share/fly/index.sqlite` | `%LOCALAPPDATA%\fly\index.sqlite` |
+
+Legacy `cdf` layouts (`.cdfRoots`, `.cdfIgnore`, `cdf/index.sqlite`) are migrated or read automatically in each location.
 
 Environment overrides:
 
@@ -68,7 +123,8 @@ Environment overrides:
 |----------|---------|
 | `FLY_CONFIG_DIR` | Relocate `.flyRoots` / global `.flyIgnore`. (`CDF_CONFIG_DIR` continues to work as a fallback.) |
 | `FLY_DATA_DIR` | Relocate the SQLite store. (`CDF_DATA_DIR` remains supported.) |
-| `XDG_CONFIG_HOME`, `XDG_DATA_HOME` | Honoured automatically if set. |
+| `XDG_CONFIG_HOME`, `XDG_DATA_HOME` | Honoured automatically on Unix-like systems. |
+| `%APPDATA%`, `%LOCALAPPDATA%` | Used automatically on Windows when XDG and explicit overrides are absent. |
 
 ---
 

@@ -44,11 +44,20 @@ Optional (for convenience):
 
 3. (Optional) Copy or symlink the shaded JAR somewhere on your `PATH`:
 
-   ```bash
-   sudo cp target/cdf-1.0-SNAPSHOT-all.jar /usr/local/lib/flyctl-all.jar
-   ```
+   - Linux / macOS:
 
-   Adjust destination/name as preferred; the examples below assume `/usr/local/lib/flyctl-all.jar`.
+     ```bash
+     sudo cp target/cdf-1.0-SNAPSHOT-all.jar /usr/local/lib/flyctl-all.jar
+     ```
+
+   - Windows (PowerShell):
+
+     ```powershell
+     New-Item -ItemType Directory -Force C:\tools\fly | Out-Null
+     Copy-Item target\cdf-1.0-SNAPSHOT-all.jar C:\tools\fly\flyctl-all.jar
+     ```
+
+   Adjust destination/name as preferred; the examples below assume `/usr/local/lib/flyctl-all.jar` on Unix-like systems and `C:\tools\fly\flyctl-all.jar` on Windows.
 
 ---
 
@@ -72,7 +81,26 @@ fly() {
 
 Reload your shell (`source ~/.bashrc`) or open a new session.
 
-### 4.2. Autocompletion (optional)
+### 4.2. PowerShell Function
+
+Add this function to your PowerShell profile (`code $PROFILE`) and update the JAR path if you chose a different location:
+
+```powershell
+function fly {
+  param(
+    [Parameter(ValueFromRemainingArguments = $true)]
+    [string[]] $Args
+  )
+  $target = & java --enable-native-access=ALL-UNNAMED -jar C:\tools\fly\flyctl-all.jar @Args
+  if ($LASTEXITCODE -eq 0 -and $target) {
+    Set-Location $target
+  }
+}
+```
+
+Reload the session (`. $PROFILE`) or open a fresh PowerShell window.
+
+### 4.3. Autocompletion (optional)
 
 Not yet implemented in v0.1.
 
@@ -110,11 +138,18 @@ Not yet implemented in v0.1.
 
 ## 6. File Layout & Data
 
+| Purpose | Linux / macOS | Windows | Notes |
+|---------|----------------|---------|-------|
+| SQLite database | `~/.local/share/fly/index.sqlite` | `%LOCALAPPDATA%\fly\index.sqlite` | Override via `FLY_DATA_DIR` / `CDF_DATA_DIR`; legacy `cdf` paths are reused automatically. |
+| Roots list | `~/.config/fly/.flyRoots` | `%APPDATA%\fly\.flyRoots` | One absolute path per line; legacy `.cdfRoots` files are migrated or read. |
+| Global ignore | `~/.config/fly/.flyIgnore` | `%APPDATA%\fly\.flyIgnore` | Gitignore syntax; legacy `.cdfIgnore` files remain supported. |
+| Per-root ignore | `<root>/.flyIgnore` | `<root>/.flyIgnore` | Applies after global rules; `.cdfIgnore` respected. |
+| Shell wrapper | `~/.bashrc`, `~/.zshrc` | PowerShell profile (`$PROFILE`) | Add the `fly` function to integrate `cd`. |
+
+Repository artefacts:
+
 | Path | Description |
 |------|-------------|
-| `~/.local/share/fly/index.sqlite` | SQLite database storing roots and indexed directories (override via `FLY_DATA_DIR`; existing `cdf` paths are detected automatically). |
-| `~/.config/fly/.flyRoots` | Ordered list of registered roots (one absolute path per line). |
-| `~/.config/fly/.flyIgnore` | Global ignore patterns (gitignore syntax, editable). |
 | `src/main/java` | Application source code. |
 | `pom.xml` | Maven configuration & dependencies. |
 | `scripts/schema.sql` | Reference schema for manual inspection (kept in sync with embedded DDL). |
@@ -146,7 +181,7 @@ Ignored directories are skipped entirely during reindex. See `docs/configuration
 
 ### 6.3 Config Location Overrides
 
-Set `FLY_CONFIG_DIR=/custom/path` to relocate `.flyRoots` and the global `.flyIgnore`. Use `FLY_DATA_DIR=/custom/data` to relocate the SQLite store (`index.sqlite` lives under that directory). Legacy `CDF_*` overrides remain supported. If unset, XDG environment variables are honoured; otherwise defaults fall back to `~/.config/fly` and `~/.local/share/fly` respectively (with automatic fallback to existing `cdf` paths).
+Set `FLY_CONFIG_DIR=/custom/path` to relocate `.flyRoots` and the global `.flyIgnore`. Use `FLY_DATA_DIR=/custom/data` to relocate the SQLite store (`index.sqlite` lives under that directory). Legacy `CDF_*` overrides remain supported. If unset, XDG environment variables are honoured; otherwise defaults fall back to `~/.config/fly` and `~/.local/share/fly` on Unix-like systems, or `%APPDATA%\fly` and `%LOCALAPPDATA%\fly` on Windows (with automatic fallback to existing `cdf` paths).
 
 Database journaling uses WAL (`index.sqlite-wal`, `index.sqlite-shm`) when the program is running.
 
@@ -161,11 +196,25 @@ Database journaling uses WAL (`index.sqlite-wal`, `index.sqlite-shm`) when the p
   sudo cp target/cdf-1.0-SNAPSHOT-all.jar /usr/local/lib/flyctl-all.jar
   ```
 
+  Windows (PowerShell):
+
+  ```powershell
+  mvn clean package
+  Copy-Item target\cdf-1.0-SNAPSHOT-all.jar C:\tools\fly\flyctl-all.jar
+  ```
+
 - **If schema updates occur:** Delete or migrate the data store:
 
   ```bash
   rm -f ~/.local/share/fly/index.sqlite*
   java --enable-native-access=ALL-UNNAMED -jar /usr/local/lib/flyctl-all.jar --reindex
+  ```
+
+  Windows (PowerShell):
+
+  ```powershell
+  Remove-Item -Path $env:LOCALAPPDATA\fly\index.sqlite* -ErrorAction SilentlyContinue
+  java --enable-native-access=ALL-UNNAMED -jar C:\tools\fly\flyctl-all.jar --reindex
   ```
 
 - **Rotate roots:** Re-run `--add-root` or `--reindex` as needed. Deleting a root removes all related directories thanks to cascading deletes.
