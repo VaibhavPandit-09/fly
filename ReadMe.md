@@ -59,7 +59,7 @@ Prefer an automated setup? As long as Java 25 is on your PATH, you can bootstrap
 ### Linux / macOS
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/VaibhavPandit-09/fly/main/scripts/install-fly.sh | bash
+curl -fsSL https://raw.githubusercontent.com/VaibhavPandit-09/fly/master/scripts/install-fly.sh | bash
 ```
 
 The script downloads the shaded JAR into `~/.local/share/fly`, appends the shell wrapper to your default profile (`~/.bashrc` or `~/.zshrc`), and keeps reruns idempotent. Override defaults by exporting any of:
@@ -70,16 +70,16 @@ The script downloads the shaded JAR into `~/.local/share/fly`, appends the shell
 - `FLY_INSTALL_JAR` (asset name, default `flyctl-all.jar`)
 - `FLY_INSTALL_PROFILE` (explicit profile file)
 
-After the installer runs, reload your shell (`source ~/.bashrc`) and try `fly --help`.
+After the installer runs, reload your shell (`source ~/.bashrc`) and try `fly --help`. If you see a 404 during the download step, publish a release asset named `flyctl-all.jar` (see `docs/installer-setup.md`).
 
 ### Windows (PowerShell 5+)
 
 ```powershell
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force;
-iex "& { $(iwr https://raw.githubusercontent.com/VaibhavPandit-09/fly/main/scripts/install-fly.ps1 -UseBasicParsing) }"
+iex "& { $(iwr https://raw.githubusercontent.com/VaibhavPandit-09/fly/master/scripts/install-fly.ps1 -UseBasicParsing) }"
 ```
 
-The PowerShell installer mirrors the Bash behaviour: it places the JAR under `%LOCALAPPDATA%\fly`, updates your `$PROFILE` with the wrapper function, and can be rerun to upgrade. You can customize the same settings via environment variables (`FLY_INSTALL_*`) or parameters (`-Repo`, `-Tag`, `-InstallDir`, `-JarName`).
+The PowerShell installer mirrors the Bash behaviour: it places the JAR under `%LOCALAPPDATA%\fly`, updates your `$PROFILE` with the wrapper function, and can be rerun to upgrade. You can customize the same settings via environment variables (`FLY_INSTALL_*`) or parameters (`-Repo`, `-Tag`, `-InstallDir`, `-JarName`). A 404 during download indicates the release asset `flyctl-all.jar` is missing.
 
 Need to audit the scripts first? They live in [`scripts/install-fly.sh`](scripts/install-fly.sh) and [`scripts/install-fly.ps1`](scripts/install-fly.ps1).
 

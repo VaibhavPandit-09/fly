@@ -33,18 +33,18 @@ The copy step gives you a predictable asset name. Keep `flyctl-all.jar` alongsid
 
 ## 3. Verify the Installers
 
-Run through the one-liners on each target platform:
+Run through the one-liners on each target platform (a 404 means the `flyctl-all.jar` asset is missing for that release):
 
 - **Linux/macOS**
   ```bash
-  curl -fsSL https://raw.githubusercontent.com/VaibhavPandit-09/fly/main/scripts/install-fly.sh | bash
+  curl -fsSL https://raw.githubusercontent.com/VaibhavPandit-09/fly/master/scripts/install-fly.sh | bash
   source ~/.bashrc    # or ~/.zshrc
   fly --help
   ```
 - **Windows (PowerShell)**
   ```powershell
   Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
-  iex "& { $(iwr https://raw.githubusercontent.com/VaibhavPandit-09/fly/main/scripts/install-fly.ps1 -UseBasicParsing) }"
+  iex "& { $(iwr https://raw.githubusercontent.com/VaibhavPandit-09/fly/master/scripts/install-fly.ps1 -UseBasicParsing) }"
   fly --help
   ```
 

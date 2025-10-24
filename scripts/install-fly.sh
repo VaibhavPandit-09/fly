@@ -2,7 +2,7 @@
 
 # fly installer (Linux / macOS)
 # Usage (one-liner):
-#   curl -fsSL https://raw.githubusercontent.com/<owner>/<repo>/main/scripts/install-fly.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/<owner>/<repo>/master/scripts/install-fly.sh | bash
 #
 # Environment overrides:
 #   FLY_INSTALL_REPO   -> GitHub owner/repo (default: VaibhavPandit-09/fly)
@@ -86,9 +86,17 @@ download() {
   local dest="$2"
 
   if command_exists curl; then
-    curl -fL "$url" -o "$dest"
+    if ! curl -fL "$url" -o "$dest"; then
+      echo "Failed to download fly package from $url" >&2
+      echo "Ensure a release asset named 'flyctl-all.jar' exists or set FLY_INSTALL_TAG to a published tag." >&2
+      exit 1
+    fi
   elif command_exists wget; then
-    wget -qO "$dest" "$url"
+    if ! wget -qO "$dest" "$url"; then
+      echo "Failed to download fly package from $url" >&2
+      echo "Ensure a release asset named 'flyctl-all.jar' exists or set FLY_INSTALL_TAG to a published tag." >&2
+      exit 1
+    fi
   else
     echo "Error: Neither curl nor wget is available. Install one of them and retry." >&2
     exit 1

@@ -2,7 +2,7 @@
   fly installer (Windows PowerShell)
   Usage:
     Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force; `
-      iex "& { $(iwr https://raw.githubusercontent.com/<owner>/<repo>/main/scripts/install-fly.ps1 -UseBasicParsing) }"
+      iex "& { $(iwr https://raw.githubusercontent.com/<owner>/<repo>/master/scripts/install-fly.ps1 -UseBasicParsing) }"
 
   Environment overrides or parameters:
     -Repo        / $env:FLY_INSTALL_REPO   (default: VaibhavPandit-09/fly)
@@ -92,29 +92,29 @@ function Ensure-ProfileSnippet {
     Set-Content -Path $ProfilePath -Value $filtered -Force
   }
 
-  $snippet = @"
+$snippet = @"
 $markerStart
 function fly {
   param(
-    [Parameter(ValueFromRemainingArguments = \$true)]
-    [string[]] \$Args
+    [Parameter(ValueFromRemainingArguments = `$true)]
+    [string[]] `$Args
   )
 
-  if (\$Args.Count -gt 0 -and \$Args[0].StartsWith("--")) {
+  if (`$Args.Count -gt 0 -and `$Args[0].StartsWith("--")) {
     & java --enable-native-access=ALL-UNNAMED -jar "$JarPath" @Args
     return
   }
 
-  \$target = & java --enable-native-access=ALL-UNNAMED -jar "$JarPath" @Args
-  \$exitCode = \$LASTEXITCODE
+  `$target = & java --enable-native-access=ALL-UNNAMED -jar "$JarPath" @Args
+  `$exitCode = `$LASTEXITCODE
 
-  if (\$target -and \$target.TrimStart().StartsWith("--")) {
-    Write-Output \$target
+  if (`$target -and `$target.TrimStart().StartsWith("--")) {
+    Write-Output `$target
     return
   }
 
-  if (\$exitCode -eq 0 -and -not [string]::IsNullOrWhiteSpace(\$target)) {
-    Set-Location \$target
+  if (`$exitCode -eq 0 -and -not [string]::IsNullOrWhiteSpace(`$target)) {
+    Set-Location `$target
   }
 }
 $markerEnd
@@ -134,7 +134,12 @@ function Invoke-Installer {
 
   $jarPath = Join-Path $InstallDir $JarName
   Write-Host "Downloading fly package from $downloadUrl"
-  Invoke-WebRequest -Uri $downloadUrl -OutFile $jarPath -UseBasicParsing
+  try {
+    Invoke-WebRequest -Uri $downloadUrl -OutFile $jarPath -UseBasicParsing
+  }
+  catch {
+    throw "Failed to download fly package. Ensure a release asset named 'flyctl-all.jar' exists (publish via GitHub Releases) or override -Tag to point at an existing version."
+  }
 
   $profilePath = $PROFILE
   Ensure-ProfileSnippet -ProfilePath $profilePath -JarPath $jarPath
