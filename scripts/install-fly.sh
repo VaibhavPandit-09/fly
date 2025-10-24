@@ -5,7 +5,7 @@
 #   curl -fsSL https://raw.githubusercontent.com/<owner>/<repo>/main/scripts/install-fly.sh | bash
 #
 # Environment overrides:
-#   FLY_INSTALL_REPO   -> GitHub owner/repo (default: inferno/cdf)
+#   FLY_INSTALL_REPO   -> GitHub owner/repo (default: VaibhavPandit-09/fly)
 #   FLY_INSTALL_TAG    -> Release tag or "latest" (default: latest)
 #   FLY_INSTALL_DIR    -> Directory to store the JAR (default: ~/.local/share/fly)
 #   FLY_INSTALL_JAR    -> Name of the shaded JAR asset (default: flyctl-all.jar)
@@ -18,7 +18,7 @@ if [[ -z "$USER_SHELL" ]]; then
   USER_SHELL="bash"
 fi
 
-REPO="${FLY_INSTALL_REPO:-inferno/cdf}"
+REPO="${FLY_INSTALL_REPO:-VaibhavPandit-09/fly}"
 TAG="${FLY_INSTALL_TAG:-latest}"
 INSTALL_DIR="${FLY_INSTALL_DIR:-$HOME/.local/share/fly}"
 JAR_NAME="${FLY_INSTALL_JAR:-flyctl-all.jar}"

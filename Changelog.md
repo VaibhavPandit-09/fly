@@ -11,6 +11,9 @@
 - **Issue:** Manual setup required multiple steps, discouraging new users.  
   **Resolution:** Added one-step installers (`scripts/install-fly.sh`, `scripts/install-fly.ps1`), documented usage in `ReadMe.md`, and shipped a maintainer playbook (`docs/installer-setup.md`).
 
+- **Issue:** Installer defaults pointed at a placeholder repository, causing mismatched downloads for this project.  
+  **Resolution:** Updated scripts and documentation to default to `VaibhavPandit-09/fly` URLs.
+
 ## 2025-10-22
 
 - **Issue:** Windows installs defaulted to Unix-specific config and data paths, creating state under `%HOMEPATH%\.config` and failing to reuse legacy `cdf` data.  

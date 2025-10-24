@@ -5,7 +5,7 @@
       iex "& { $(iwr https://raw.githubusercontent.com/<owner>/<repo>/main/scripts/install-fly.ps1 -UseBasicParsing) }"
 
   Environment overrides or parameters:
-    -Repo        / $env:FLY_INSTALL_REPO   (default: inferno/cdf)
+    -Repo        / $env:FLY_INSTALL_REPO   (default: VaibhavPandit-09/fly)
     -Tag         / $env:FLY_INSTALL_TAG    (default: latest)
     -InstallDir  / $env:FLY_INSTALL_DIR    (default: $env:LOCALAPPDATA\fly)
     -JarName     / $env:FLY_INSTALL_JAR    (default: flyctl-all.jar)
@@ -22,7 +22,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 if (-not $Repo -or $Repo.Trim().Length -eq 0) {
-  if ($env:FLY_INSTALL_REPO) { $Repo = $env:FLY_INSTALL_REPO } else { $Repo = "inferno/cdf" }
+  if ($env:FLY_INSTALL_REPO) { $Repo = $env:FLY_INSTALL_REPO } else { $Repo = "VaibhavPandit-09/fly" }
 }
 if (-not $Tag -or $Tag.Trim().Length -eq 0) {
   if ($env:FLY_INSTALL_TAG) { $Tag = $env:FLY_INSTALL_TAG } else { $Tag = "latest" }

@@ -27,7 +27,7 @@ The copy step gives you a predictable asset name. Keep `flyctl-all.jar` alongsid
 3. Upload `flyctl-all.jar` as a binary asset.
 4. (Optional) Upload a checksum file (e.g., `flyctl-all.jar.sha256`).
 
-> The installers fetch the latest release (`https://github.com/<owner>/<repo>/releases/latest/download/flyctl-all.jar`) by default. If you need channel-specific installers, update the scripts to point at the appropriate tag.
+> The installers fetch the latest release (`https://github.com/VaibhavPandit-09/fly/releases/latest/download/flyctl-all.jar`) by default. If you need channel-specific installers, update the scripts to point at the appropriate tag.
 
 ---
 
@@ -37,18 +37,18 @@ Run through the one-liners on each target platform:
 
 - **Linux/macOS**
   ```bash
-  curl -fsSL https://raw.githubusercontent.com/<owner>/<repo>/main/scripts/install-fly.sh | bash
+  curl -fsSL https://raw.githubusercontent.com/VaibhavPandit-09/fly/main/scripts/install-fly.sh | bash
   source ~/.bashrc    # or ~/.zshrc
   fly --help
   ```
 - **Windows (PowerShell)**
   ```powershell
   Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
-  iex "& { $(iwr https://raw.githubusercontent.com/<owner>/<repo>/main/scripts/install-fly.ps1 -UseBasicParsing) }"
+  iex "& { $(iwr https://raw.githubusercontent.com/VaibhavPandit-09/fly/main/scripts/install-fly.ps1 -UseBasicParsing) }"
   fly --help
   ```
 
-If you are testing unreleased changes, export `FLY_INSTALL_TAG=<tag>` or point the scripts at a fork (`FLY_INSTALL_REPO=<owner>/<repo>`).
+If you are testing unreleased changes, export `FLY_INSTALL_TAG=<tag>` or point the scripts at a fork (e.g., `FLY_INSTALL_REPO=username/fly`).
 
 ---
 
@@ -58,7 +58,7 @@ Update both installer scripts if any of the following change:
 
 | Change | Files to edit | Notes |
 |--------|---------------|-------|
-| GitHub org/repo | `scripts/install-fly.sh`, `scripts/install-fly.ps1`, README commands | Update the default `inferno/cdf` string. |
+| GitHub org/repo | `scripts/install-fly.sh`, `scripts/install-fly.ps1`, README commands | Update the default `VaibhavPandit-09/fly` string if the repository moves. |
 | Asset name | same | Ensure `JAR_NAME` / `$JarName` match the release asset. |
 | Install directory defaults | same | Adjust `INSTALL_DIR` / `$InstallDir` logic (and README documentation). |
 | Shell wrapper logic | installers + README | Keep snippets identical across README and scripts. |

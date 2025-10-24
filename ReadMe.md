@@ -59,12 +59,12 @@ Prefer an automated setup? As long as Java 25 is on your PATH, you can bootstrap
 ### Linux / macOS
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/inferno/cdf/main/scripts/install-fly.sh | bash
+curl -fsSL https://raw.githubusercontent.com/VaibhavPandit-09/fly/main/scripts/install-fly.sh | bash
 ```
 
 The script downloads the shaded JAR into `~/.local/share/fly`, appends the shell wrapper to your default profile (`~/.bashrc` or `~/.zshrc`), and keeps reruns idempotent. Override defaults by exporting any of:
 
-- `FLY_INSTALL_REPO` (`owner/repo`, default `inferno/cdf`)
+- `FLY_INSTALL_REPO` (`owner/repo`, default `VaibhavPandit-09/fly`)
 - `FLY_INSTALL_TAG` (GitHub release tag, default `latest`)
 - `FLY_INSTALL_DIR` (where to store the JAR, default `~/.local/share/fly`)
 - `FLY_INSTALL_JAR` (asset name, default `flyctl-all.jar`)
@@ -76,7 +76,7 @@ After the installer runs, reload your shell (`source ~/.bashrc`) and try `fly --
 
 ```powershell
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force;
-iex "& { $(iwr https://raw.githubusercontent.com/inferno/cdf/main/scripts/install-fly.ps1 -UseBasicParsing) }"
+iex "& { $(iwr https://raw.githubusercontent.com/VaibhavPandit-09/fly/main/scripts/install-fly.ps1 -UseBasicParsing) }"
 ```
 
 The PowerShell installer mirrors the Bash behaviour: it places the JAR under `%LOCALAPPDATA%\fly`, updates your `$PROFILE` with the wrapper function, and can be rerun to upgrade. You can customize the same settings via environment variables (`FLY_INSTALL_*`) or parameters (`-Repo`, `-Tag`, `-InstallDir`, `-JarName`).
