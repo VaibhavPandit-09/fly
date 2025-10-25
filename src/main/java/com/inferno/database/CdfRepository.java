@@ -367,7 +367,7 @@ public final class CdfRepository implements AutoCloseable {
     public List<Directory> findByBasename(String basename) throws SQLException {
         final String sql = """
             SELECT id, basename, fullpath, depth, root_id, mtime, last_used, segments
-            FROM directories WHERE basename = ?
+            FROM directories WHERE basename = ? COLLATE NOCASE
             """;
         try (PreparedStatement ps = requireConn().prepareStatement(sql)) {
             ps.setString(1, basename);

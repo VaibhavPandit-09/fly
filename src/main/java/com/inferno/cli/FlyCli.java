@@ -77,12 +77,13 @@ public final class FlyCli {
     private void printUsage() {
         System.out.println("""
                 Usage:
-                  flyctl --add-root <path>      Add or update a root
-                  flyctl --list-roots           Show configured roots
-                  flyctl --reindex              Rebuild directory index
-                  flyctl --count                Print total indexed directories
-                  flyctl --reset                Drop all roots and indexed directories
-                  fly <basename|index>          Print path for basename or reuse numbered match
+                  fly --add-root <path>      Add or update a root
+                  fly --list-roots           Show configured roots
+                  fly --reindex              Rebuild directory index
+                  fly --count                Print total indexed directories
+                  fly --reset                Drop all roots and indexed directories
+                  fly <basename|index>       Print path for basename or reuse numbered match
+                  fly <hints> <basename>     Print path for basename with hints
                 """.stripTrailing());
     }
 
