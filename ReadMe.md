@@ -18,7 +18,7 @@
 ## How `fly` Works
 
 1. **Roots** – You register one or more root directories. They are stored in a config file (`.flyRoots`) and mirrored into SQLite.
-2. **Indexing** – `flyctl --reindex` traverses each root, recording directory metadata (basename, full path, depth, modified time, slash-delimited segments). Ignore rules (global and per-root) prune unwanted directories.
+2. **Indexing** – `fly --reindex` traverses each root, recording directory metadata (basename, full path, depth, modified time, slash-delimited segments). Ignore rules (global and per-root) prune unwanted directories.
 3. **Queries** – `fly <basename>` fetches matching directories, sorts them, and prints the result. Subsequent hint tokens narrow matches.
 4. **Jumping** – Wrap the CLI with a shell function that executes the JAR and `cd`s into the returned path when successful.
 
@@ -41,12 +41,12 @@ Code structure:
    ```bash
    mvn clean package
    ```
-3. Copy `target/cdf-1.0-SNAPSHOT-all.jar` somewhere convenient (`/usr/local/lib/flyctl-all.jar`, `~/Library/Application Support/fly/flyctl-all.jar`, or `C:\tools\fly\flyctl-all.jar`).
+3. Copy `target/cdf-1.0-SNAPSHOT-all.jar` somewhere convenient (`/usr/local/lib/fly-all.jar`, `~/Library/Application Support/fly/fly-all.jar`, or `C:\tools\fly\fly-all.jar`).
 4. Add the matching shell function (Bash/Zsh for Linux/macOS, PowerShell for Windows).
 5. Register a root, reindex, and start jumping:
    ```bash
-   flyctl --add-root ~/workspace
-   flyctl --reindex
+   fly --add-root ~/workspace
+   fly --reindex
    fly services
    ```
 
@@ -67,10 +67,10 @@ The script downloads the shaded JAR into `~/.local/share/fly`, appends the shell
 - `FLY_INSTALL_REPO` (`owner/repo`, default `VaibhavPandit-09/fly`)
 - `FLY_INSTALL_TAG` (GitHub release tag, default `latest`)
 - `FLY_INSTALL_DIR` (where to store the JAR, default `~/.local/share/fly`)
-- `FLY_INSTALL_JAR` (asset name, default `flyctl-all.jar`)
+- `FLY_INSTALL_JAR` (asset name, default `fly-all.jar`)
 - `FLY_INSTALL_PROFILE` (explicit profile file)
 
-After the installer runs, reload your shell (`source ~/.bashrc`) and try `fly --help`. If you see a 404 during the download step, publish a release asset named `flyctl-all.jar` (see `docs/installer-setup.md`).
+After the installer runs, reload your shell (`source ~/.bashrc`) and try `fly --help`. If you see a 404 during the download step, publish a release asset named `fly-all.jar` (see `docs/installer-setup.md`).
 
 ### Windows (PowerShell 5+)
 
@@ -79,7 +79,7 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force;
 iex "& { $(iwr https://raw.githubusercontent.com/VaibhavPandit-09/fly/master/scripts/install-fly.ps1 -UseBasicParsing) }"
 ```
 
-The PowerShell installer mirrors the Bash behaviour: it places the JAR under `%LOCALAPPDATA%\fly`, updates your `$PROFILE` with the wrapper function, and can be rerun to upgrade. You can customize the same settings via environment variables (`FLY_INSTALL_*`) or parameters (`-Repo`, `-Tag`, `-InstallDir`, `-JarName`). A 404 during download indicates the release asset `flyctl-all.jar` is missing.
+The PowerShell installer mirrors the Bash behaviour: it places the JAR under `%LOCALAPPDATA%\fly`, updates your `$PROFILE` with the wrapper function, and can be rerun to upgrade. You can customize the same settings via environment variables (`FLY_INSTALL_*`) or parameters (`-Repo`, `-Tag`, `-InstallDir`, `-JarName`). A 404 during download indicates the release asset `fly-all.jar` is missing.
 
 Need to audit the scripts first? They live in [`scripts/install-fly.sh`](scripts/install-fly.sh) and [`scripts/install-fly.ps1`](scripts/install-fly.ps1).
 
@@ -104,7 +104,7 @@ Need to audit the scripts first? They live in [`scripts/install-fly.sh`](scripts
 
 3. **Install the shaded JAR**
    ```bash
-   sudo install -D target/cdf-1.0-SNAPSHOT-all.jar /usr/local/lib/flyctl-all.jar
+   sudo install -D target/cdf-1.0-SNAPSHOT-all.jar /usr/local/lib/fly-all.jar
    ```
 
 4. **Shell integration** – See [Shell Integration (Bash/Zsh)](#shell-integration-bashzsh).
@@ -128,7 +128,7 @@ Need to audit the scripts first? They live in [`scripts/install-fly.sh`](scripts
 3. **Install the shaded JAR**
    ```bash
    mkdir -p "$HOME/Library/Application Support/fly"
-   cp target/cdf-1.0-SNAPSHOT-all.jar "$HOME/Library/Application Support/fly/flyctl-all.jar"
+   cp target/cdf-1.0-SNAPSHOT-all.jar "$HOME/Library/Application Support/fly/fly-all.jar"
    ```
    (You may keep using `/usr/local/lib` if you prefer parity with Linux.)
 
@@ -157,7 +157,7 @@ Need to audit the scripts first? They live in [`scripts/install-fly.sh`](scripts
 3. **Install the shaded JAR**
    ```powershell
    New-Item -ItemType Directory -Force C:\tools\fly | Out-Null
-   Copy-Item target\cdf-1.0-SNAPSHOT-all.jar C:\tools\fly\flyctl-all.jar
+   Copy-Item target\cdf-1.0-SNAPSHOT-all.jar C:\tools\fly\fly-all.jar
    ```
 
 4. **Shell integration** – Add the PowerShell function to your profile (see below).
@@ -174,12 +174,12 @@ fly() {
 
   # Pass-through for CLI flags (no directory change)
   if [[ $1 == --* ]]; then
-    java --enable-native-access=ALL-UNNAMED -jar /usr/local/lib/flyctl-all.jar "$@"
+    java --enable-native-access=ALL-UNNAMED -jar /usr/local/lib/fly-all.jar "$@"
     return
   }
 
   # Run Java and capture the output
-  target=$(java --enable-native-access=ALL-UNNAMED -jar /usr/local/lib/flyctl-all.jar "$@")
+  target=$(java --enable-native-access=ALL-UNNAMED -jar /usr/local/lib/fly-all.jar "$@")
 
   # Multi-match output starts with "--"
   if [[ $target == --* ]]; then
@@ -194,7 +194,7 @@ fly() {
 }
 ```
 
-For macOS, replace `/usr/local/lib/flyctl-all.jar` with `"${HOME}/Library/Application Support/fly/flyctl-all.jar"` (remember to quote the path).
+For macOS, replace `/usr/local/lib/fly-all.jar` with `"${HOME}/Library/Application Support/fly/fly-all.jar"` (remember to quote the path).
 
 Reload your shell (`source ~/.bashrc`, `source ~/.zshrc`, or start a new terminal).
 
@@ -212,11 +212,11 @@ function fly {
   )
 
   if ($Args.Count -gt 0 -and $Args[0].StartsWith("--")) {
-    & java --enable-native-access=ALL-UNNAMED -jar C:\tools\fly\flyctl-all.jar @Args
+    & java --enable-native-access=ALL-UNNAMED -jar C:\tools\fly\fly-all.jar @Args
     return
   }
 
-  $target = & java --enable-native-access=ALL-UNNAMED -jar C:\tools\fly\flyctl-all.jar @Args
+  $target = & java --enable-native-access=ALL-UNNAMED -jar C:\tools\fly\fly-all.jar @Args
   $exitCode = $LASTEXITCODE
 
   if ($target -and $target.TrimStart().StartsWith("--")) {
@@ -238,11 +238,11 @@ Reload the profile with `. $PROFILE` or open a new Windows Terminal session.
 
 | Command | Description |
 |---------|-------------|
-| `flyctl --add-root <path>` | Register or update a root directory. |
-| `flyctl --list-roots` | Print configured roots and the active config directory. |
-| `flyctl --count` | Show the total number of indexed directories. |
-| `flyctl --reindex` | Rebuild the directory index for all roots. |
-| `flyctl --reset` | Drop all roots and indexed directories (prints number removed). |
+| `fly --add-root <path>` | Register or update a root directory. |
+| `fly --list-roots` | Print configured roots and the active config directory. |
+| `fly --count` | Show the total number of indexed directories. |
+| `fly --reindex` | Rebuild the directory index for all roots. |
+| `fly --reset` | Drop all roots and indexed directories (prints number removed). |
 | `fly <basename>` | Resolve a basename and print the best match. |
 | `fly hint1 hint2 basename` | Filter results using optional hint tokens before the basename. |
 | `fly <index>` | Reuse a numbered entry from the previous multi-match. |
@@ -250,12 +250,12 @@ Reload the profile with `. $PROFILE` or open a new Windows Terminal session.
 Example session:
 
 ```bash
-flyctl --add-root ~/workspace
-flyctl --add-root ~/sandbox
-flyctl --reindex
+fly --add-root ~/workspace
+fly --add-root ~/sandbox
+fly --reindex
 fly services
 fly 2
-flyctl --count
+fly --count
 ```
 
 ---
@@ -283,9 +283,9 @@ Environment overrides:
 ## macOS Notes
 
 - macOS defaults to Zsh; place the shell function in `~/.zshrc` (or `~/.zprofile`) and restart the terminal.
-- Spotlight or Time Machine can change directory metadata; re-run `flyctl --reindex` after large moves.
+- Spotlight or Time Machine can change directory metadata; re-run `fly --reindex` after large moves.
 - To embrace macOS conventions, set `FLY_CONFIG_DIR`/`FLY_DATA_DIR` to subdirectories of `~/Library/Application Support/fly`.
-- Automate reindexing with `launchd` by pointing a job at `/usr/bin/java --enable-native-access=ALL-UNNAMED -jar <path>/flyctl-all.jar --reindex`.
+- Automate reindexing with `launchd` by pointing a job at `/usr/bin/java --enable-native-access=ALL-UNNAMED -jar <path>/fly-all.jar --reindex`.
 
 ---
 
@@ -295,11 +295,11 @@ Environment overrides:
   ```bash
   git pull
   mvn clean package
-  sudo cp target/cdf-1.0-SNAPSHOT-all.jar /usr/local/lib/flyctl-all.jar          # Linux/macOS
-  Copy-Item target\cdf-1.0-SNAPSHOT-all.jar C:\tools\fly\flyctl-all.jar          # Windows
+  sudo cp target/cdf-1.0-SNAPSHOT-all.jar /usr/local/lib/fly-all.jar          # Linux/macOS
+  Copy-Item target\cdf-1.0-SNAPSHOT-all.jar C:\tools\fly\fly-all.jar          # Windows
   ```
-- **Reindex**: `flyctl --reindex`
-- **Reset state**: `flyctl --reset`
+- **Reindex**: `fly --reindex`
+- **Reset state**: `fly --reset`
 - **Inspect database**: `sqlite3 ~/.local/share/fly/index.sqlite ".tables"` (adjust path per OS)
 - **One-step installer upkeep**: follow `docs/installer-setup.md` when publishing new releases or relocating assets.
 
@@ -337,7 +337,7 @@ Project layout:
 
 - **`mvn` not found** – Install Maven and ensure it is exported on `PATH`.
 - **Java version mismatch** – Set `JAVA_HOME` to a JDK 25 installation (`export JAVA_HOME=/path/to/jdk`).
-- **`flyctl --reindex` fails** – Ensure roots exist and are readable; check ignore rules.
+- **`fly --reindex` fails** – Ensure roots exist and are readable; check ignore rules.
 - **Database locked** – Close other clients and remove WAL files (`index.sqlite-wal`, `index.sqlite-shm`) when the CLI is not running.
 - **Shell function prints nothing** – Confirm the JAR path and verify `java --enable-native-access=ALL-UNNAMED -jar ...` runs successfully on its own.
 - **PowerShell profile not loading** – `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`.
