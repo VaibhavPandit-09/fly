@@ -1,5 +1,13 @@
 # Changelog
 
+## 2025-10-24
+
+- **Issue:** Shell wrappers that capture stdout (`target=$(fly ...)`) broke whenever multi-match menus were displayed, because the CLI printed prompts to stdout before the user made a selection.  
+  **Resolution:** Routed multi-match menus and prompts to stderr so stdout only contains the final selected path or command output.
+- **Issue:** Documentation still referenced the old sentinel-based wrappers that looked for `--Multiple matches found--`.  
+  **Resolution:** Updated README, Build handbook, and new update docs to describe the stderr-based interaction model and clarify upgrade steps.
+- **Improvement:** Added `UpdatesDoc/WhatsNew.md` and `UpdatesDoc/fly-1.0.2.md` to provide concise release summaries alongside the detailed changelog.
+
 ## 2025-10-23
 
 - **Issue:** Documentation scattered installation guidance across multiple files and lacked macOS specifics, leading to inconsistent onboarding.  

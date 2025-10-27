@@ -11,6 +11,7 @@ import java.nio.file.Path;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.Objects;
+import java.util.Scanner;
 
 /**
  * Minimal CLI surface for v0.1:
@@ -51,6 +52,10 @@ public final class FlyCli {
             case "--count" -> handlePathCount();
             case "--reindex" -> handleReindex();
             case "--reset"  -> handleDatabaseReset();
+            case "--version" -> {
+                System.out.println("fly version 1.0.2");
+                yield 0;
+            }
             default -> handleBasenameQuery(args);
         };
     }
@@ -134,6 +139,8 @@ public final class FlyCli {
 
     private int handleBasenameQuery(String[] args) throws SQLException {
 
+        Scanner scanner = new Scanner(System.in);
+
         if (args.length > 1) {
             List<String> pathFromHints = jumpPaths.resolveByHintsAndBasename(args);
             if (pathFromHints.isEmpty()) {
@@ -143,26 +150,39 @@ public final class FlyCli {
             if (pathFromHints.size() == 1) {
                 System.out.println(pathFromHints.get(0));
             } else {
-                System.out.println("--Multiple matches found--");
+                System.err.println("--Multiple matches found--");
                 for (int i = 0; i < pathFromHints.size(); i++) {
-                    System.out.println((i + 1) + ": " + pathFromHints.get(i));
+                    System.err.println((i + 1) + ": " + pathFromHints.get(i));
+                }
+                System.err.print("Select index of a path to fly: ");
+                String line = scanner.nextLine();
+                try {
+                    int choice = Integer.parseInt(line);
+                    if (choice < 1 || choice > pathFromHints.size()) {
+                        System.err.println("Invalid choice.");
+                        return 1;
+                    }
+                    System.out.println(jumpPaths.getPathFromLastCall(choice).get(0));
+                } catch (NumberFormatException e) {
+                    System.err.println("Invalid input.");
+                    return 1;
                 }
             }
             return 0;
         }
         
 
-        //Check if argument is an index from last call
-        try {
-            int index = Integer.parseInt(args[0]);
-            List<String> pathFromIndex = jumpPaths.getPathFromLastCall(index);
-            if (!pathFromIndex.isEmpty()) {
-                System.out.println(pathFromIndex.get(0));
-                return 0;
-            }
-        } catch (NumberFormatException ignore) {
-            // Fall through to basename lookup.
-        }
+        // //Check if argument is an index from last call
+        // try {
+        //     int index = Integer.parseInt(args[0]);
+        //     List<String> pathFromIndex = jumpPaths.getPathFromLastCall(index);
+        //     if (!pathFromIndex.isEmpty()) {
+        //         System.out.println(pathFromIndex.get(0));
+        //         return 0;
+        //     }
+        // } catch (NumberFormatException ignore) {
+        //     // Fall through to basename lookup.
+        // }
 
         List<String> match = jumpPaths.resolveByBasename(args[0]);
         if (match.isEmpty()) {
@@ -173,9 +193,22 @@ public final class FlyCli {
         if (match.size() == 1) {
             System.out.println(match.get(0));
         } else {
-            System.out.println("--Multiple matches found--");
+            System.err.println("--Multiple matches found--");
             for (int i = 0; i < match.size(); i++) {
-                System.out.println((i + 1) + ": " + match.get(i));
+                System.err.println((i + 1) + ": " + match.get(i));
+            }
+            System.err.print("Select index of a path to fly: ");
+            String line = scanner.nextLine();
+            try {
+                int choice = Integer.parseInt(line);
+                if (choice < 1 || choice > match.size()) {
+                    System.err.println("Invalid choice.");
+                    return 1;
+                }
+                System.out.println(jumpPaths.getPathFromLastCall(choice).get(0));
+            } catch (NumberFormatException e) {
+                System.err.println("Invalid input.");
+                return 1;
             }
         }
         return 0;

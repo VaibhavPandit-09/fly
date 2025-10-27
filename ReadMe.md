@@ -15,6 +15,13 @@
 
 ---
 
+## What's New
+
+- Release notes live under [`UpdatesDoc/WhatsNew.md`](UpdatesDoc/WhatsNew.md), with version-specific details in [`UpdatesDoc/fly-1.0.2.md`](UpdatesDoc/fly-1.0.2.md).
+- fly 1.0.2 routes interactive menus to stderr so shell wrappers can keep piping stdout straight into `cd`.
+
+---
+
 ## How `fly` Works
 
 1. **Roots** – You register one or more root directories. They are stored in a config file (`.flyRoots`) and mirrored into SQLite.
@@ -41,7 +48,7 @@ Code structure:
    ```bash
    mvn clean package
    ```
-3. Copy `target/cdf-1.0-SNAPSHOT-all.jar` somewhere convenient (`/usr/local/lib/fly-all.jar`, `~/Library/Application Support/fly/fly-all.jar`, or `C:\tools\fly\fly-all.jar`).
+3. Copy `target/cdf-1.0-SNAPSHOT-all.jar` to your install path (popular choices: `~/.local/share/fly/flyctl-all.jar`, `~/Library/Application Support/fly/flyctl-all.jar`, or `C:\tools\fly\flyctl-all.jar`).
 4. Add the matching shell function (Bash/Zsh for Linux/macOS, PowerShell for Windows).
 5. Register a root, reindex, and start jumping:
    ```bash
@@ -67,10 +74,10 @@ The script downloads the shaded JAR into `~/.local/share/fly`, appends the shell
 - `FLY_INSTALL_REPO` (`owner/repo`, default `VaibhavPandit-09/fly`)
 - `FLY_INSTALL_TAG` (GitHub release tag, default `latest`)
 - `FLY_INSTALL_DIR` (where to store the JAR, default `~/.local/share/fly`)
-- `FLY_INSTALL_JAR` (asset name, default `fly-all.jar`)
+- `FLY_INSTALL_JAR` (asset name, default `flyctl-all.jar`)
 - `FLY_INSTALL_PROFILE` (explicit profile file)
 
-After the installer runs, reload your shell (`source ~/.bashrc`) and try `fly --help`. If you see a 404 during the download step, publish a release asset named `fly-all.jar` (see `docs/installer-setup.md`).
+After the installer runs, reload your shell (`source ~/.bashrc`) and try `fly --help`. If you see a 404 during the download step, publish a release asset named `flyctl-all.jar` (see `docs/installer-setup.md`).
 
 ### Windows (PowerShell 5+)
 
@@ -79,7 +86,7 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force;
 iex "& { $(iwr https://raw.githubusercontent.com/VaibhavPandit-09/fly/master/scripts/install-fly.ps1 -UseBasicParsing) }"
 ```
 
-The PowerShell installer mirrors the Bash behaviour: it places the JAR under `%LOCALAPPDATA%\fly`, updates your `$PROFILE` with the wrapper function, and can be rerun to upgrade. You can customize the same settings via environment variables (`FLY_INSTALL_*`) or parameters (`-Repo`, `-Tag`, `-InstallDir`, `-JarName`). A 404 during download indicates the release asset `fly-all.jar` is missing.
+The PowerShell installer mirrors the Bash behaviour: it places the JAR under `%LOCALAPPDATA%\fly`, updates your `$PROFILE` with the wrapper function, and can be rerun to upgrade. You can customize the same settings via environment variables (`FLY_INSTALL_*`) or parameters (`-Repo`, `-Tag`, `-InstallDir`, `-JarName`). A 404 during download indicates the release asset `flyctl-all.jar` is missing.
 
 Need to audit the scripts first? They live in [`scripts/install-fly.sh`](scripts/install-fly.sh) and [`scripts/install-fly.ps1`](scripts/install-fly.ps1).
 
@@ -104,7 +111,7 @@ Need to audit the scripts first? They live in [`scripts/install-fly.sh`](scripts
 
 3. **Install the shaded JAR**
    ```bash
-   sudo install -D target/cdf-1.0-SNAPSHOT-all.jar /usr/local/lib/fly-all.jar
+   sudo install -D target/cdf-1.0-SNAPSHOT-all.jar /usr/local/lib/flyctl-all.jar
    ```
 
 4. **Shell integration** – See [Shell Integration (Bash/Zsh)](#shell-integration-bashzsh).
@@ -113,7 +120,7 @@ Need to audit the scripts first? They live in [`scripts/install-fly.sh`](scripts
 
 1. **Prerequisites**
    ```bash
-    brew install openjdk maven
+   brew install openjdk maven
    ```
    Ensure the Homebrew JDK is on your PATH (Intel uses `/usr/local`, Apple Silicon uses `/opt/homebrew`):
    ```bash
@@ -128,7 +135,7 @@ Need to audit the scripts first? They live in [`scripts/install-fly.sh`](scripts
 3. **Install the shaded JAR**
    ```bash
    mkdir -p "$HOME/Library/Application Support/fly"
-   cp target/cdf-1.0-SNAPSHOT-all.jar "$HOME/Library/Application Support/fly/fly-all.jar"
+  cp target/cdf-1.0-SNAPSHOT-all.jar "$HOME/Library/Application Support/fly/flyctl-all.jar"
    ```
    (You may keep using `/usr/local/lib` if you prefer parity with Linux.)
 
@@ -157,7 +164,7 @@ Need to audit the scripts first? They live in [`scripts/install-fly.sh`](scripts
 3. **Install the shaded JAR**
    ```powershell
    New-Item -ItemType Directory -Force C:\tools\fly | Out-Null
-   Copy-Item target\cdf-1.0-SNAPSHOT-all.jar C:\tools\fly\fly-all.jar
+  Copy-Item target\cdf-1.0-SNAPSHOT-all.jar C:\tools\fly\flyctl-all.jar
    ```
 
 4. **Shell integration** – Add the PowerShell function to your profile (see below).
@@ -171,30 +178,30 @@ Add this function to `~/.bashrc`, `~/.bash_profile`, or `~/.zshrc`, adjusting th
 ```bash
 fly() {
   local target
+  local status
 
   # Pass-through for CLI flags (no directory change)
   if [[ $1 == --* ]]; then
-    java --enable-native-access=ALL-UNNAMED -jar /usr/local/lib/fly-all.jar "$@"
+    java --enable-native-access=ALL-UNNAMED -jar /usr/local/lib/flyctl-all.jar "$@"
     return
   }
 
-  # Run Java and capture the output
-  target=$(java --enable-native-access=ALL-UNNAMED -jar /usr/local/lib/fly-all.jar "$@")
+  # Run Java and capture stdout; interactive menus stay on stderr
+  target=$(java --enable-native-access=ALL-UNNAMED -jar /usr/local/lib/flyctl-all.jar "$@")
+  status=$?
 
-  # Multi-match output starts with "--"
-  if [[ $target == --* ]]; then
-    echo "$target"
-    return
+  if (( status != 0 )); then
+    return $status
   }
 
   # Change directory only when the command succeeded and returned a non-empty path
-  if [[ $? -eq 0 && -n $target ]]; then
+  if [[ -n $target ]]; then
     cd "$target" || return
   }
 }
 ```
 
-For macOS, replace `/usr/local/lib/fly-all.jar` with `"${HOME}/Library/Application Support/fly/fly-all.jar"` (remember to quote the path).
+For macOS, replace `/usr/local/lib/flyctl-all.jar` with `"${HOME}/Library/Application Support/fly/flyctl-all.jar"` (remember to quote the path).
 
 Reload your shell (`source ~/.bashrc`, `source ~/.zshrc`, or start a new terminal).
 
@@ -212,19 +219,19 @@ function fly {
   )
 
   if ($Args.Count -gt 0 -and $Args[0].StartsWith("--")) {
-    & java --enable-native-access=ALL-UNNAMED -jar C:\tools\fly\fly-all.jar @Args
+    & java --enable-native-access=ALL-UNNAMED -jar C:\tools\fly\flyctl-all.jar @Args
     return
   }
 
-  $target = & java --enable-native-access=ALL-UNNAMED -jar C:\tools\fly\fly-all.jar @Args
+  # Menus and prompts stay on stderr; stdout carries the final path
+  $target = & java --enable-native-access=ALL-UNNAMED -jar C:\tools\fly\flyctl-all.jar @Args
   $exitCode = $LASTEXITCODE
 
-  if ($target -and $target.TrimStart().StartsWith("--")) {
-    Write-Output $target
-    return
+  if ($exitCode -ne 0) {
+    return $exitCode
   }
 
-  if ($exitCode -eq 0 -and -not [string]::IsNullOrWhiteSpace($target)) {
+  if (-not [string]::IsNullOrWhiteSpace($target)) {
     Set-Location $target
   }
 }
@@ -285,7 +292,7 @@ Environment overrides:
 - macOS defaults to Zsh; place the shell function in `~/.zshrc` (or `~/.zprofile`) and restart the terminal.
 - Spotlight or Time Machine can change directory metadata; re-run `fly --reindex` after large moves.
 - To embrace macOS conventions, set `FLY_CONFIG_DIR`/`FLY_DATA_DIR` to subdirectories of `~/Library/Application Support/fly`.
-- Automate reindexing with `launchd` by pointing a job at `/usr/bin/java --enable-native-access=ALL-UNNAMED -jar <path>/fly-all.jar --reindex`.
+- Automate reindexing with `launchd` by pointing a job at `/usr/bin/java --enable-native-access=ALL-UNNAMED -jar <path>/flyctl-all.jar --reindex`.
 
 ---
 
@@ -295,8 +302,8 @@ Environment overrides:
   ```bash
   git pull
   mvn clean package
-  sudo cp target/cdf-1.0-SNAPSHOT-all.jar /usr/local/lib/fly-all.jar          # Linux/macOS
-  Copy-Item target\cdf-1.0-SNAPSHOT-all.jar C:\tools\fly\fly-all.jar          # Windows
+  sudo cp target/cdf-1.0-SNAPSHOT-all.jar /usr/local/lib/flyctl-all.jar       # Linux/macOS
+  Copy-Item target\cdf-1.0-SNAPSHOT-all.jar C:\tools\fly\flyctl-all.jar       # Windows
   ```
 - **Reindex**: `fly --reindex`
 - **Reset state**: `fly --reset`

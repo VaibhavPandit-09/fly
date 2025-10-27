@@ -87,6 +87,7 @@ java --enable-native-access=ALL-UNNAMED -jar C:\tools\fly\flyctl-all.jar --help
 ```bash
 fly() {
   local target
+  local status
 
   # If the first argument starts with "--", treat it as a flag
   if [[ $1 == --* ]]; then
@@ -94,17 +95,16 @@ fly() {
     return
   }
 
-  # Run Java and capture its output
+  # Run Java and capture its stdout; interactive menus stay on stderr
   target=$(java --enable-native-access=ALL-UNNAMED -jar /usr/local/lib/flyctl-all.jar "$@")
+  status=$?
 
-  # If Java returns a flag-like string (starting with "--"), print it instead of cd
-  if [[ $target == --* ]]; then
-    echo "$target"
-    return
+  if (( status != 0 )); then
+    return $status
   }
 
   # If the command succeeded and returned a non-empty path, cd into it
-  if [[ $? -eq 0 && -n $target ]]; then
+  if [[ -n $target ]]; then
     cd "$target" || return
   }
 }
@@ -126,15 +126,15 @@ function fly {
     return
   }
 
+  # Menus and prompts stay on stderr; stdout carries the final path
   $target = & java --enable-native-access=ALL-UNNAMED -jar C:\tools\fly\flyctl-all.jar @Args
   $exitCode = $LASTEXITCODE
 
-  if ($target -and $target.TrimStart().StartsWith("--")) {
-    Write-Output $target
-    return
+  if ($exitCode -ne 0) {
+    return $exitCode
   }
 
-  if ($exitCode -eq 0 -and -not [string]::IsNullOrWhiteSpace($target)) {
+  if (-not [string]::IsNullOrWhiteSpace($target)) {
     Set-Location $target
   }
 }
