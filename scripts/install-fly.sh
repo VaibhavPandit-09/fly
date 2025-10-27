@@ -134,21 +134,28 @@ install_shell_snippet() {
     echo ""
     echo "$MARKER_START"
     echo "fly() {"
+    echo "  local jar=\"$jar_path\""
     echo "  local target"
+    echo "  local status"
     echo ""
-    echo "  if [[ \$1 == --* ]]; then"
-    echo "    java --enable-native-access=ALL-UNNAMED -jar \"$jar_path\" \"\$@\""
+    echo "  if [[ \${1:-} == \"--update\" ]]; then"
+    echo "    curl -fsSL https://raw.githubusercontent.com/VaibhavPandit-09/fly/master/scripts/install-fly.sh | bash"
+    echo "    return \$?"
+    echo "  fi"
+    echo ""
+    echo "  if [[ \${1:-} == --* ]]; then"
+    echo "    java --enable-native-access=ALL-UNNAMED -jar \"\$jar\" \"\$@\""
     echo "    return"
     echo "  fi"
     echo ""
-    echo "  target=\$(java --enable-native-access=ALL-UNNAMED -jar \"$jar_path\" \"\$@\")"
+    echo "  target=\$(java --enable-native-access=ALL-UNNAMED -jar \"\$jar\" \"\$@\")"
+    echo "  status=\$?"
     echo ""
-    echo "  if [[ \$target == --* ]]; then"
-    echo "    echo \"\$target\""
-    echo "    return"
+    echo "  if (( status != 0 )); then"
+    echo "    return \$status"
     echo "  fi"
     echo ""
-    echo "  if [[ \$? -eq 0 && -n \$target ]]; then"
+    echo "  if [[ -n \$target ]]; then"
     echo "    cd \"\$target\" || return"
     echo "  fi"
     echo "}"
@@ -181,20 +188,37 @@ Automatic shell integration is not yet available for fish shell.
 Add the following function to ~/.config/fish/config.fish manually:
 
 function fly
-  set target (java --enable-native-access=ALL-UNNAMED -jar "$jar_path" \$argv)
-  if test (status) -eq 0 -a -n "\$target"
-    if string match -- "--*" "\$target"
-      printf "%s\n" "\$target"
-    else
-      cd "\$target"
+  set jar "$jar_path"
+
+  if test (count \$argv) -gt 0
+    if test \$argv[1] = "--update"
+      command curl -fsSL https://raw.githubusercontent.com/VaibhavPandit-09/fly/master/scripts/install-fly.sh | bash
+      return \$status
     end
+
+    if string match -q -- "--*" \$argv[1]
+      java --enable-native-access=ALL-UNNAMED -jar "$jar" \$argv
+      return \$status
+    end
+  end
+
+  set target (java --enable-native-access=ALL-UNNAMED -jar "$jar" \$argv)
+  set status \$status
+
+  if test \$status -ne 0
+    return \$status
+  end
+
+  if test -n "\$target"
+    cd "\$target"
   end
 end
 
 Reload fish after updating the function, then run:
   fly --help
 
-To update later, rerun this installer.
+To update later, run:
+  fly --update
 EOF
   else
     install_shell_snippet "$profile" "$jar_path"
@@ -207,7 +231,8 @@ fly installed successfully!
 Reload your shell (e.g., 'source $profile') or open a new terminal, then run:
   fly --help
 
-To update later, rerun this installer.
+To update later, run:
+  fly --update
 EOF
   fi
 

@@ -1,5 +1,11 @@
 # Changelog
 
+## 2025-10-25
+
+- **Feature:** Shell wrappers lacked a built-in upgrade path, forcing users to remember the installer command.  
+  **Resolution:** Added a `--update` branch to Bash/Zsh, Fish, and PowerShell wrappers so `fly --update` replays the appropriate installer script; installers now emit the updated snippet automatically.
+- **Documentation:** README, Build handbook, and update docs now explain the new `fly --update` flow and include it in maintenance checklists.
+
 ## 2025-10-24
 
 - **Issue:** Shell wrappers that capture stdout (`target=$(fly ...)`) broke whenever multi-match menus were displayed, because the CLI printed prompts to stdout before the user made a selection.  

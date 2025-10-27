@@ -53,7 +53,7 @@ public final class FlyCli {
             case "--reindex" -> handleReindex();
             case "--reset"  -> handleDatabaseReset();
             case "--version" -> {
-                System.out.println("fly version 1.0.2");
+                System.out.println("fly version 1.0.3");
                 yield 0;
             }
             default -> handleBasenameQuery(args);

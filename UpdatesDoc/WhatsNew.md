@@ -1,5 +1,11 @@
 # What's New in fly
 
+## fly 1.0.3 — Built-in Updater
+
+- Added a `fly --update` helper to the shell wrappers so users can rerun the installer script without hunting for the command.
+- Installer scripts now emit wrapper snippets with the updater baked in (Bash/Zsh, Fish, and PowerShell).
+- Documentation and release checklists highlight the new refresh path.
+
 ## fly 1.0.2 — Friendly Interactive Prompts
 
 - Multi-match menus and prompts now write to stderr, keeping stdout clean for shell wrappers that `cd` into returned paths.

@@ -86,17 +86,23 @@ java --enable-native-access=ALL-UNNAMED -jar C:\tools\fly\flyctl-all.jar --help
 
 ```bash
 fly() {
+  local jar="/usr/local/lib/flyctl-all.jar"
   local target
   local status
 
+  if [[ ${1:-} == "--update" ]]; then
+    curl -fsSL https://raw.githubusercontent.com/VaibhavPandit-09/fly/master/scripts/install-fly.sh | bash
+    return $?
+  fi
+
   # If the first argument starts with "--", treat it as a flag
-  if [[ $1 == --* ]]; then
-    java --enable-native-access=ALL-UNNAMED -jar /usr/local/lib/flyctl-all.jar "$@"
+  if [[ ${1:-} == --* ]]; then
+    java --enable-native-access=ALL-UNNAMED -jar "$jar" "$@"
     return
   }
 
   # Run Java and capture its stdout; interactive menus stay on stderr
-  target=$(java --enable-native-access=ALL-UNNAMED -jar /usr/local/lib/flyctl-all.jar "$@")
+  target=$(java --enable-native-access=ALL-UNNAMED -jar "$jar" "$@")
   status=$?
 
   if (( status != 0 )); then
@@ -110,7 +116,7 @@ fly() {
 }
 ```
 
-- Update the JAR path for macOS if you store it under `~/Library/Application Support/fly`.
+- Update the `jar` path for macOS if you store it under `~/Library/Application Support/fly`, and replace `curl` if you prefer another downloader.
 - For Fish or other shells, wrap the call similarly—capturing stderr/stdout and checking the exit code before `cd`.
 
 ### PowerShell Function
@@ -121,13 +127,20 @@ function fly {
     [Parameter(ValueFromRemainingArguments = $true)]
     [string[]] $Args
   )
+  $jar = "C:\tools\fly\flyctl-all.jar"
+
+  if ($Args.Count -gt 0 -and $Args[0] -eq "--update") {
+    iex "& { $(iwr https://raw.githubusercontent.com/VaibhavPandit-09/fly/master/scripts/install-fly.ps1 -UseBasicParsing) }"
+    return
+  }
+
   if ($Args.Count -gt 0 -and $Args[0].StartsWith("--")) {
-    & java --enable-native-access=ALL-UNNAMED -jar C:\tools\fly\flyctl-all.jar @Args
+    & java --enable-native-access=ALL-UNNAMED -jar $jar @Args
     return
   }
 
   # Menus and prompts stay on stderr; stdout carries the final path
-  $target = & java --enable-native-access=ALL-UNNAMED -jar C:\tools\fly\flyctl-all.jar @Args
+  $target = & java --enable-native-access=ALL-UNNAMED -jar $jar @Args
   $exitCode = $LASTEXITCODE
 
   if ($exitCode -ne 0) {
@@ -152,6 +165,7 @@ Quote the `-jar` path if your install directory contains spaces. Reload the prof
 4. `flyctl --count` reports the correct number of directories.
 5. `flyctl --reset` prints (`Reset complete; removed … indexed entries.`) and sets exit code `0`.
 6. Repeat the smoke test on all supported shells (Bash/Zsh/PowerShell).
+7. Run `fly --update` to ensure the installer endpoint is reachable and the wrapper handles the refresh path.
 
 ---
 
@@ -162,7 +176,8 @@ Quote the `-jar` path if your install directory contains spaces. Reload the prof
 3. `mvn clean package` (no warnings beyond Maven/Guava deprecation).
 4. Copy `target/cdf-1.0-SNAPSHOT-all.jar` to `flyctl-all.jar` (the name used by the installers).
 5. Verify the shaded JAR launches with `--help` on Linux/macOS/Windows.
-6. Publish artifacts or copy to distribution channel (see `docs/installer-setup.md` for details).
+6. Exercise the update path (`fly --update`) on at least one platform.
+7. Publish artifacts or copy to distribution channel (see `docs/installer-setup.md` for details).
 
 ---
 

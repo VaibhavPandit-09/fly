@@ -100,20 +100,25 @@ function fly {
     [string[]] `$Args
   )
 
+  if (`$Args.Count -gt 0 -and `$Args[0] -eq "--update") {
+    iex "& { `$(iwr https://raw.githubusercontent.com/VaibhavPandit-09/fly/master/scripts/install-fly.ps1 -UseBasicParsing) }"
+    return
+  }
+
   if (`$Args.Count -gt 0 -and `$Args[0].StartsWith("--")) {
     & java --enable-native-access=ALL-UNNAMED -jar "$JarPath" @Args
     return
   }
 
+  # Menus and prompts stay on stderr; stdout carries the final path
   `$target = & java --enable-native-access=ALL-UNNAMED -jar "$JarPath" @Args
   `$exitCode = `$LASTEXITCODE
 
-  if (`$target -and `$target.TrimStart().StartsWith("--")) {
-    Write-Output `$target
-    return
+  if (`$exitCode -ne 0) {
+    return `$exitCode
   }
 
-  if (`$exitCode -eq 0 -and -not [string]::IsNullOrWhiteSpace(`$target)) {
+  if (-not [string]::IsNullOrWhiteSpace(`$target)) {
     Set-Location `$target
   }
 }
@@ -152,7 +157,8 @@ function Invoke-Installer {
   Write-Host "Reload your PowerShell session (or run '. $profilePath') and then execute:"
   Write-Host "  fly --help"
   Write-Host ""
-  Write-Host "To update later, rerun this installer."
+  Write-Host "To update later, run:"
+  Write-Host "  fly --update"
 }
 
 Invoke-Installer
