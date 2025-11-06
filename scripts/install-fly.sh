@@ -136,7 +136,7 @@ install_shell_snippet() {
     echo "fly() {"
     echo "  local jar=\"$jar_path\""
     echo "  local target"
-    echo "  local status"
+    echo "  local exit_code"
     echo ""
     echo "  if [[ \${1:-} == \"--update\" ]]; then"
     echo "    curl -fsSL https://raw.githubusercontent.com/VaibhavPandit-09/fly/master/scripts/install-fly.sh | bash"
@@ -149,10 +149,10 @@ install_shell_snippet() {
     echo "  fi"
     echo ""
     echo "  target=\$(java --enable-native-access=ALL-UNNAMED -jar \"\$jar\" \"\$@\")"
-    echo "  status=\$?"
+    echo "  exit_code=\$?"
     echo ""
-    echo "  if (( status != 0 )); then"
-    echo "    return \$status"
+    echo "  if (( exit_code != 0 )); then"
+    echo "    return \$exit_code"
     echo "  fi"
     echo ""
     echo "  if [[ -n \$target ]]; then"
@@ -198,15 +198,15 @@ function fly
 
     if string match -q -- "--*" \$argv[1]
       java --enable-native-access=ALL-UNNAMED -jar "$jar" \$argv
-      return \$status
+      return
     end
   end
 
   set target (java --enable-native-access=ALL-UNNAMED -jar "$jar" \$argv)
-  set status \$status
+  set exit_code \$status
 
-  if test \$status -ne 0
-    return \$status
+  if test \$exit_code -ne 0
+    return \$exit_code
   end
 
   if test -n "\$target"

@@ -88,7 +88,7 @@ java --enable-native-access=ALL-UNNAMED -jar C:\tools\fly\flyctl-all.jar --help
 fly() {
   local jar="/usr/local/lib/flyctl-all.jar"
   local target
-  local status
+  local exit_code
 
   if [[ ${1:-} == "--update" ]]; then
     curl -fsSL https://raw.githubusercontent.com/VaibhavPandit-09/fly/master/scripts/install-fly.sh | bash
@@ -99,20 +99,20 @@ fly() {
   if [[ ${1:-} == --* ]]; then
     java --enable-native-access=ALL-UNNAMED -jar "$jar" "$@"
     return
-  }
+  fi
 
   # Run Java and capture its stdout; interactive menus stay on stderr
   target=$(java --enable-native-access=ALL-UNNAMED -jar "$jar" "$@")
-  status=$?
+  exit_code=$?
 
-  if (( status != 0 )); then
-    return $status
-  }
+  if (( exit_code != 0 )); then
+    return $exit_code
+  fi
 
   # If the command succeeded and returned a non-empty path, cd into it
   if [[ -n $target ]]; then
     cd "$target" || return
-  }
+  fi
 }
 ```
 
