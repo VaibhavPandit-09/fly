@@ -43,6 +43,28 @@ public final class JumpPaths {
         return paths;
     }
 
+     public List<String> getClosestPaths (String basename) throws SQLException {
+        if (basename == null || basename.isBlank()) {
+            return List.of();
+        }
+
+        List<CdfRepository.Directory> matches = repository.findClosestByBasename(basename);
+        if (matches.isEmpty()) {
+            return List.of();
+        }
+
+        Comparator<CdfRepository.Directory> comparator = Comparator
+                .comparingInt(CdfRepository.Directory::depth)
+                .thenComparing(CdfRepository.Directory::fullpath);
+
+        matches.sort(comparator);
+        List<String> paths = matches.stream()
+                .map(CdfRepository.Directory::fullpath)
+                .toList();
+        repository.replaceLastCallPaths(paths);
+        return paths;
+    }
+
     // Take an string array. Last element is basename. All preceding elements are hints.
     public List<String> resolveByHintsAndBasename(String[] tokens) throws SQLException {
         if (tokens == null || tokens.length == 0) {

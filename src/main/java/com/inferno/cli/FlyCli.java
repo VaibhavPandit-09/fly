@@ -53,7 +53,7 @@ public final class FlyCli {
             case "--reindex" -> handleReindex();
             case "--reset"  -> handleDatabaseReset();
             case "--version" -> {
-                System.out.println("fly version 1.0.4");
+                System.out.println("fly version 1.0.5");
                 yield 0;
             }
             default -> handleBasenameQuery(args);
@@ -170,21 +170,42 @@ public final class FlyCli {
             }
             return 0;
         }
-        
 
-        // //Check if argument is an index from last call
-        // try {
-        //     int index = Integer.parseInt(args[0]);
-        //     List<String> pathFromIndex = jumpPaths.getPathFromLastCall(index);
-        //     if (!pathFromIndex.isEmpty()) {
-        //         System.out.println(pathFromIndex.get(0));
-        //         return 0;
-        //     }
-        // } catch (NumberFormatException ignore) {
-        //     // Fall through to basename lookup.
-        // }
+        List<String> match;
 
-        List<String> match = jumpPaths.resolveByBasename(args[0]);
+        if (args[0].endsWith("?")) {
+            match = jumpPaths.getClosestPaths(args[0]);
+
+
+            if (match.isEmpty()) {
+                System.err.printf("No directory indexed with basename '%s'.%n", args[0]);
+                return 1;
+            }
+
+        if (match.size() == 1) {
+            System.out.println(match.get(0));
+        } else {
+            System.err.println("--Multiple matches found--");
+            for (int i = 0; i < match.size(); i++) {
+                System.err.println((i + 1) + ": " + match.get(i));
+            }
+            System.err.print("Select index of a path to fly: ");
+            String line = scanner.nextLine();
+            try {
+                int choice = Integer.parseInt(line);
+                if (choice < 1 || choice > match.size()) {
+                    System.err.println("Invalid choice.");
+                    return 1;
+                }
+                System.out.println(jumpPaths.getPathFromLastCall(choice).get(0));
+            } catch (NumberFormatException e) {
+                System.err.println("Invalid input.");
+                return 1;
+            }
+        }
+        }
+
+        match = jumpPaths.resolveByBasename(args[0]);
         if (match.isEmpty()) {
             System.err.printf("No directory indexed with basename '%s'.%n", args[0]);
             return 1;

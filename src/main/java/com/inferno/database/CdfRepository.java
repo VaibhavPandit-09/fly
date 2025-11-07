@@ -574,4 +574,20 @@ public final class CdfRepository implements AutoCloseable {
         String os = System.getProperty("os.name");
         return os != null && os.toLowerCase(Locale.ROOT).contains("win");
     }
+
+    public List<Directory> findClosestByBasename(String basename) throws SQLException {
+        // Fetch all directories with closest match on basename
+        final String sql = """
+            SELECT id, basename, fullpath, depth, root_id, mtime, last_used, segments
+            FROM directories
+            WHERE basename LIKE ? COLLATE NOCASE
+            """;
+        String pattern = "%" + basename + "%";
+        try (PreparedStatement ps = requireConn().prepareStatement(sql)) {
+            ps.setString(1, pattern);
+            try (ResultSet rs = ps.executeQuery()) {
+                return readDirectories(rs);
+            }
+        }
+    }
 }
