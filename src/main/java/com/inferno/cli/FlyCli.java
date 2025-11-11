@@ -53,7 +53,7 @@ public final class FlyCli {
             case "--reindex" -> handleReindex();
             case "--reset"  -> handleDatabaseReset();
             case "--version" -> {
-                System.out.println("fly version 1.0.8");
+                System.out.println("fly version 1.0.9");
                 yield 0;
             }
             default -> handleBasenameQuery(args);
@@ -165,7 +165,7 @@ private int handleBasenameQuery(String[] args) throws SQLException {
     } else {
         // --- Path 2: Query WITHOUT hints (just basename) ---
         // First, try the "closest" search.
-        matches = jumpPaths.getClosestPaths(args[0]);
+        matches = jumpPaths.resolveByBasename(args[0]);
 
         if (matches.isEmpty()) {
             // If "closest" fails, print an error and try the "resolve" fallback.
