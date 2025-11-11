@@ -171,7 +171,7 @@ private int handleBasenameQuery(String[] args) throws SQLException {
             // If "closest" fails, print an error and try the "resolve" fallback.
             System.err.printf("No directory indexed with basename '%s'.%n", args[0]);
             
-            matches = jumpPaths.resolveByBasename(args[0]);
+            matches = jumpPaths.resolveByClosestBasename(args[0]);
             
             if (matches.isEmpty()) {
                 // Both primary and fallback searches failed.
