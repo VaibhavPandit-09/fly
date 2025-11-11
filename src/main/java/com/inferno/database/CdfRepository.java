@@ -7,6 +7,7 @@ import java.sql.*;
 import java.time.Instant;
 import java.util.Locale;
 import java.util.ArrayList;
+import java.util.Hashtable;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -589,5 +590,17 @@ public final class CdfRepository implements AutoCloseable {
                 return readDirectories(rs);
             }
         }
+    }
+
+    public Hashtable<String, String> getBaseNameAndPaths() throws SQLException {
+        final String sql = "SELECT basename, fullpath FROM directories";
+        Hashtable<String, String> table = new Hashtable<>();
+        try (PreparedStatement ps = requireConn().prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) {
+                table.put(rs.getString("basename"), rs.getString("fullpath"));
+            }
+        }
+        return table;
     }
 }

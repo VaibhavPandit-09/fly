@@ -53,7 +53,7 @@ public final class FlyCli {
             case "--reindex" -> handleReindex();
             case "--reset"  -> handleDatabaseReset();
             case "--version" -> {
-                System.out.println("fly version 1.0.5");
+                System.out.println("fly version 1.0.7");
                 yield 0;
             }
             default -> handleBasenameQuery(args);
@@ -137,101 +137,95 @@ public final class FlyCli {
         return 0;
     }
 
-    private int handleBasenameQuery(String[] args) throws SQLException {
+    /**
+ * Handles the main logic for the basename query.
+ * It determines whether hints are provided and calls the appropriate search.
+ * It then delegates the handling of the results (empty, single, or multiple)
+ * to the processMatches helper method.
+ *
+ * @param args Command-line arguments.
+ * @return 0 on success, 1 on error.
+ * @throws SQLException If a database error occurs.
+ */
+private int handleBasenameQuery(String[] args) throws SQLException {
 
-        Scanner scanner = new Scanner(System.in);
+    Scanner scanner = new Scanner(System.in);
+    List<String> matches;
 
-        if (args.length > 1) {
-            List<String> pathFromHints = jumpPaths.resolveByHintsAndBasename(args);
-            if (pathFromHints.isEmpty()) {
-                System.err.printf("No directory indexed matching hints and basename '%s'.%n", args[args.length - 1]);
-                return 1;
-            }
-            if (pathFromHints.size() == 1) {
-                System.out.println(pathFromHints.get(0));
-            } else {
-                System.err.println("--Multiple matches found--");
-                for (int i = 0; i < pathFromHints.size(); i++) {
-                    System.err.println((i + 1) + ": " + pathFromHints.get(i));
-                }
-                System.err.print("Select index of a path to fly: ");
-                String line = scanner.nextLine();
-                try {
-                    int choice = Integer.parseInt(line);
-                    if (choice < 1 || choice > pathFromHints.size()) {
-                        System.err.println("Invalid choice.");
-                        return 1;
-                    }
-                    System.out.println(jumpPaths.getPathFromLastCall(choice).get(0));
-                } catch (NumberFormatException e) {
-                    System.err.println("Invalid input.");
-                    return 1;
-                }
-            }
-            return 0;
-        }
+    if (args.length > 1) {
+        // --- Path 1: Query WITH hints ---
+        // The last arg is basename, preceding are hints.
+        matches = jumpPaths.resolveByHintsAndBasename(args);
 
-        List<String> match;
-
-        if (args[0].endsWith("?")) {
-            match = jumpPaths.getClosestPaths(args[0]);
-
-
-            if (match.isEmpty()) {
-                System.err.printf("No directory indexed with basename '%s'.%n", args[0]);
-                return 1;
-            }
-
-        if (match.size() == 1) {
-            System.out.println(match.get(0));
-        } else {
-            System.err.println("--Multiple matches found--");
-            for (int i = 0; i < match.size(); i++) {
-                System.err.println((i + 1) + ": " + match.get(i));
-            }
-            System.err.print("Select index of a path to fly: ");
-            String line = scanner.nextLine();
-            try {
-                int choice = Integer.parseInt(line);
-                if (choice < 1 || choice > match.size()) {
-                    System.err.println("Invalid choice.");
-                    return 1;
-                }
-                System.out.println(jumpPaths.getPathFromLastCall(choice).get(0));
-            } catch (NumberFormatException e) {
-                System.err.println("Invalid input.");
-                return 1;
-            }
-        }
-        }
-
-        match = jumpPaths.resolveByBasename(args[0]);
-        if (match.isEmpty()) {
-            System.err.printf("No directory indexed with basename '%s'.%n", args[0]);
+        if (matches.isEmpty()) {
+            System.err.printf("No directory indexed matching hints and basename '%s'.%n", args[args.length - 1]);
             return 1;
         }
+        
+    } else {
+        // --- Path 2: Query WITHOUT hints (just basename) ---
+        // First, try the "closest" search.
+        matches = jumpPaths.getClosestPaths(args[0]);
 
-        if (match.size() == 1) {
-            System.out.println(match.get(0));
-        } else {
-            System.err.println("--Multiple matches found--");
-            for (int i = 0; i < match.size(); i++) {
-                System.err.println((i + 1) + ": " + match.get(i));
-            }
-            System.err.print("Select index of a path to fly: ");
-            String line = scanner.nextLine();
-            try {
-                int choice = Integer.parseInt(line);
-                if (choice < 1 || choice > match.size()) {
-                    System.err.println("Invalid choice.");
-                    return 1;
-                }
-                System.out.println(jumpPaths.getPathFromLastCall(choice).get(0));
-            } catch (NumberFormatException e) {
-                System.err.println("Invalid input.");
+        if (matches.isEmpty()) {
+            // If "closest" fails, print an error and try the "resolve" fallback.
+            System.err.printf("No directory indexed with basename '%s'.%n", args[0]);
+            
+            matches = jumpPaths.resolveByBasename(args[0]);
+            
+            if (matches.isEmpty()) {
+                // Both primary and fallback searches failed.
                 return 1;
             }
         }
+    }
+
+    // At this point, we have a non-empty list of matches.
+    // Pass them to the helper to handle the 1-vs-many logic.
+    return processMatches(matches, scanner);
+}
+
+/**
+ * Helper method to process a non-empty list of matches.
+ * - If 1 match, it prints it.
+ * - If >1 match, it prompts the user to select one.
+ *
+ * @param matches The non-empty list of path matches.
+ * @param scanner A Scanner instance to read user input.
+ * @return 0 on success (path printed), 1 on user error (invalid choice).
+ * @throws SQLException If a database error occurs.
+ */
+private int processMatches(List<String> matches, Scanner scanner) throws SQLException {
+    
+    // Case 1: Exactly one match. Print it and exit successfully.
+    if (matches.size() == 1) {
+        System.out.println(matches.get(0));
         return 0;
     }
+
+    // Case 2: Multiple matches. Print them all and prompt for a choice.
+    System.err.println("--Multiple matches found--");
+    for (int i = 0; i < matches.size(); i++) {
+        System.err.println((i + 1) + ": " + matches.get(i));
+    }
+
+    System.err.print("Select index of a path to fly: ");
+    String line = scanner.nextLine();
+
+    try {
+        int choice = Integer.parseInt(line);
+        if (choice < 1 || choice > matches.size()) {
+            System.err.println("Invalid choice.");
+            return 1;
+        }
+        
+        // Assumes 'jumpPaths' is a member variable
+        System.out.println(jumpPaths.getPathFromLastCall(choice).get(0));
+        return 0;
+
+    } catch (NumberFormatException e) {
+        System.err.println("Invalid input.");
+        return 1;
+    }
+}
 }

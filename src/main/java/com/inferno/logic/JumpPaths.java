@@ -4,6 +4,7 @@ import com.inferno.database.CdfRepository;
 
 import java.sql.SQLException;
 import java.util.Comparator;
+import java.util.Hashtable;
 import java.util.List;
 import java.util.Objects;
 
@@ -16,6 +17,64 @@ public final class JumpPaths {
 
     public JumpPaths(CdfRepository repository) {
         this.repository = Objects.requireNonNull(repository);
+    }
+
+    //Method to get paths by basename by closest spelling match of the basename. Get top 5 closest matches.
+    public List<String> resolveByClosestBasename(String basename) throws SQLException {
+        if (basename == null || basename.isBlank()) {
+            return List.of();
+        }
+
+        Hashtable<String, String> allBasenames = repository.getBaseNameAndPaths();
+        if (allBasenames.isEmpty()) {
+            return List.of();
+        } 
+        Hashtable<String, Integer> distanceMap = new Hashtable<>();
+        for (String existingBasename : allBasenames.keySet()) {
+            int distance = calculateLevenshtein(basename, existingBasename);
+            distanceMap.put(existingBasename, distance);
+        }
+        List<String> closestBasenames = distanceMap.entrySet().stream()
+                .sorted(Comparator.comparingInt(java.util.Map.Entry::getValue))
+                .limit(5)
+                .map(java.util.Map.Entry::getKey)
+                .toList();
+        List<String> paths = closestBasenames.stream()
+                .map(allBasenames::get)
+                .toList();
+        repository.replaceLastCallPaths(paths);
+        return paths;
+
+    }
+
+
+    /**
+     * Calculates the Levenshtein distance between two strings.
+     * This is a standard dynamic programming implementation.
+     */
+    public static int calculateLevenshtein(String str1, String str2) {
+        int[][] dp = new int[str1.length() + 1][str2.length() + 1];
+
+        for (int i = 0; i <= str1.length(); i++) {
+            for (int j = 0; j <= str2.length(); j++) {
+                if (i == 0) {
+                    dp[i][j] = j; // Cost of insertions
+                } else if (j == 0) {
+                    dp[i][j] = i; // Cost of deletions
+                } else {
+                    int cost = (str1.charAt(i - 1) == str2.charAt(j - 1)) ? 0 : 1; // Cost of substitution
+                    
+                    dp[i][j] = Math.min(
+                        dp[i - 1][j] + 1,      // Deletion
+                        Math.min(
+                            dp[i][j - 1] + 1,  // Insertion
+                            dp[i - 1][j - 1] + cost // Substitution
+                        )
+                    );
+                }
+            }
+        }
+        return dp[str1.length()][str2.length()];
     }
 
     /**
@@ -113,6 +172,8 @@ public final class JumpPaths {
         }
         return List.of(paths.get(index - 1));
     }
+
+
 
 
 }
